@@ -2,18 +2,52 @@ import sys
 import socket
 import yaml
 
-MSGTYPE = 1
 
-def bgp():
-    with open('config.yaml', 'r') as yml:
-        config = yaml.safe_load(yml)
-    if MSGTYPE == 1:
+def bgp(type, direction, MsgArray=None):
+    if type == 1:
+        with open('config.yaml', 'r') as yml:
+            config = yaml.safe_load(yml)
         # Open
         OPENCONF = config['open'][0]
-        b_openmsg = openMsg(OPENCONF['version'], OPENCONF['MyASN'], OPENCONF['HoldTime'], OPENCONF['RouterID'], OPENCONF['Option'])
-        b_msgheader = msgHeader(int(len(b_openmsg)/8), 1)
-        msg = b_msgheader + b_openmsg
-        return msg
+        if direction == 1:
+            # OPEN req
+            b_openmsg = openMsg(OPENCONF['version'], OPENCONF['MyASN'], OPENCONF['HoldTime'], OPENCONF['RouterID'], OPENCONF['Option'])
+            b_msgheader = msgHeader(int(len(b_openmsg)/8), 1)
+            msg = b_msgheader + b_openmsg
+            msglen = int(len(msg)/8)
+            return int(msg, 2), msglen 
+        else:
+            # OPEN res
+            # version
+            if OPENCONF['version'] == MsgArray[19]:
+                print("Version Match")
+            else:
+                print("Version Unmatch")
+            print("ASN: " + str(MsgArray[20] * 8 + MsgArray[21]))
+            # ASN
+            if OPENCONF['MyASN'] == (MsgArray[20] * 8 + MsgArray[21]):
+                print("ASN Mastch(iBGP)")
+            else:
+                print("ASN Unmastch(eBGP)")
+            print("HoldTime: " + str(MsgArray[22] * 8 + MsgArray[23]))
+            # HoldTime
+            if OPENCONF['HoldTime'] > (MsgArray[22] * 8 + MsgArray[23]):
+                print("Use Neighber HoldTime ")
+            else:
+                print("Use My HoldTime")
+            # RouterID
+            if OPENCONF['RouterID'] == (str(MsgArray[24]) + '.' + str(MsgArray[25]) + '.' + str(MsgArray[26]) + '.' + str(MsgArray[27])):
+                print("Duplication Router-ID")
+            else:
+                print("Remote-AS OK")
+            b_openmsg = openMsg(OPENCONF['version'], OPENCONF['MyASN'], OPENCONF['HoldTime'], OPENCONF['RouterID'], OPENCONF['Option'])
+            b_msgheader = msgHeader(int(len(b_openmsg)/8), 1)
+            msg = b_msgheader + b_openmsg
+            msglen = int(len(msg)/8)
+            return int(msg, 2), msglen 
+
+
+
     else:
         pass
     
@@ -95,27 +129,93 @@ def binaryRouterID(value):
         print("BGP RouterID is Incorrect")
         sys.exit()
 
+def replyOpen(MsgArray):
+    data, msglen = bgp(1,2, MsgArray)
+    return data.to_bytes(int(msglen), 'big')
+
 def server(IPADDR, PORT):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind((IPADDR, int(PORT)))
         s.listen()
-        conn, addr = s.accept()
-        with conn:
-            print("Connected by ", addr)
-            while True:
-                data = conn.recv(1024)
-                if not data: break
-                conn.sendall(data)
+        while True:
+            conn, addr = s.accept()
+            with conn:
+                print("Connected by ", addr)    
+                data = conn.recv(4096)
+                BgpMsgArray = []
+                type = 0
+                for i,bit in enumerate(data, 1):
+                    BgpMsgArray.append(bit)
+                    if i == 19:
+                        # Type
+                        if bit == 1:
+                            type = 1
+                            print("receive OPEN Message")
+                        elif bit == 2:
+                            type = 2
+                            print("receive UPDATE Message")
+                        elif bit == 3:
+                            type = 3
+                            print("receive NOTIFICATION Message")
+                        elif bit == 4:
+                            type = 4
+                            print("receive KEEPALIVE Message")
+                        else:
+                            print("Unknown")
+                # Typeによる処理の変化
+                if type == 1:
+                    replydata = replyOpen(BgpMsgArray)
+                    conn.send(replydata)
+                elif type == 2:
+                    pass
+                elif type == 3:
+                    pass
+                elif type == 4:
+                    pass
+                else:
+                    pass
+                #conn.send('Retry?(y|n)'.encode('utf-8'))
 
 def client(IPADDR, PORT, DATA):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((IPADDR, int(PORT)))
-        s.sendall(DATA.encode())
-        data = s.recv(1024)
+        s.sendall(DATA)
+        data = s.recv(4096)
+        BgpMsgArray = []
+        type = 0
+        for i,bit in enumerate(data, 1):
+            BgpMsgArray.append(bit)
+            if i == 19:
+                # Type
+                if bit == 1:
+                    type = 1
+                    print("receive OPEN Message")
+                elif bit == 2:
+                    type = 2
+                    print("receive UPDATE Message")
+                elif bit == 3:
+                    type = 3
+                    print("receive NOTIFICATION Message")
+                elif bit == 4:
+                    type = 4
+                    print("receive KEEPALIVE Message")
+                else:
+                    print("Unknown")
+        # Typeによる処理の変化
+        if type == 1:
+            pass
+        elif type == 2:
+            pass
+        elif type == 3:
+            pass
+        elif type == 4:
+            pass
+        else:
+            pass
+        #conn.send('Retry?(y|n)'.encode('utf-8'))
     print('Received', repr(data))
 
 def main():
-    data = bgp()
     arg = sys.argv
     if 2 <= len(arg):
         cmd = arg[1]
@@ -124,7 +224,8 @@ def main():
                 server(arg[2], arg[3])
         elif cmd == "cl":
             if 4 <= len(arg):
-                client(arg[2], arg[3], data)
+                data, msglen = bgp(1, 1)
+                client(arg[2], arg[3], data.to_bytes(int(msglen), 'big'))
         else:
             print("Unexpected argument(sv or cl)")
     else:
