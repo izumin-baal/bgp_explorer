@@ -1,0 +1,7 @@
+open:
+  - version: 4
+    MyASN: 1
+    HoldTime: 10
+    RouterID: "1.1.1.1"
+    Option: False
+update:
