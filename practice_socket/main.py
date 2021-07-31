@@ -16,7 +16,7 @@ def server(IPADDR, PORT):
 def client(IPADDR, PORT):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((IPADDR, int(PORT)))
-        s.sendall("Hello BGP")
+        s.sendall(b"Hello BGP")
         data = s.recv(1024)
     print('Received', repr(data))
         
