@@ -5,14 +5,20 @@ def server(IPADDR, PORT):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind((IPADDR, int(PORT)))
         s.listen()
-        while True:
-            clsock, claddr = s.accept()
-            print(f"addr: {claddr}")
-            clsock.close()
+        conn, addr = s.accept()
+        with conn:
+            print("Connected by ", addr)
+            while True:
+                data = conn.recv(1024)
+                if not data: break
+                conn.sendall(data)
 
 def client(IPADDR, PORT):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((IPADDR, int(PORT)))
+        s.sendall("Hello BGP")
+        data = s.recv(1024)
+    print('Received', repr(data))
         
 
 def main():
