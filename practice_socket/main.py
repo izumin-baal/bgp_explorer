@@ -10,8 +10,10 @@ def server(IPADDR, PORT):
             print(f"addr: {claddr}")
             clsock.close()
 
-def client():
-    pass
+def client(IPADDR, PORT):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.connect((IPADDR, int(PORT)))
+        
 
 def main():
     arg = sys.argv
