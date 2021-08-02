@@ -1,6 +1,8 @@
 import sys
 import socket
 import yaml
+import threading
+import time
 
 
 def bgp(type, direction, MsgArray=None):
@@ -19,32 +21,43 @@ def bgp(type, direction, MsgArray=None):
         else:
             # OPEN res
             # version
+            print("Version: " + str(MsgArray[19]))
             if OPENCONF['version'] == MsgArray[19]:
                 print("Version Match")
             else:
                 print("Version Unmatch")
-            print("ASN: " + str(MsgArray[20] * 8 + MsgArray[21]))
+                errorMsg = notificateMsg()
+            
             # ASN
+            print("ASN: " + str(MsgArray[20] * 8 + MsgArray[21]))
             if OPENCONF['MyASN'] == (MsgArray[20] * 8 + MsgArray[21]):
                 print("ASN Mastch(iBGP)")
             else:
                 print("ASN Unmastch(eBGP)")
-            print("HoldTime: " + str(MsgArray[22] * 8 + MsgArray[23]))
+            
             # HoldTime
+            print("HoldTime: " + str(MsgArray[22] * 8 + MsgArray[23]))
             if OPENCONF['HoldTime'] > (MsgArray[22] * 8 + MsgArray[23]):
                 print("Use Neighber HoldTime ")
             else:
                 print("Use My HoldTime")
+            
             # RouterID
+            print("Router-id: " + str(MsgArray[24]) + '.' + str(MsgArray[25]) + '.' + str(MsgArray[26]) + '.' + str(MsgArray[27]))
             if OPENCONF['RouterID'] == (str(MsgArray[24]) + '.' + str(MsgArray[25]) + '.' + str(MsgArray[26]) + '.' + str(MsgArray[27])):
                 print("Duplication Router-ID")
+                errorMsg = notificateMsg()
             else:
                 print("Remote-AS OK")
-            b_openmsg = openMsg(OPENCONF['version'], OPENCONF['MyASN'], OPENCONF['HoldTime'], OPENCONF['RouterID'], OPENCONF['Option'])
-            b_msgheader = msgHeader(int(len(b_openmsg)/8), 1)
-            msg = b_msgheader + b_openmsg
-            msglen = int(len(msg)/8)
-            return int(msg, 2), msglen 
+            if 'errorMsg' in locals():
+                msglen = int(len(errorMsg)/8)
+                return int(errorMsg, 2), msglen
+            else:
+                b_openmsg = openMsg(OPENCONF['version'], OPENCONF['MyASN'], OPENCONF['HoldTime'], OPENCONF['RouterID'], OPENCONF['Option'])
+                b_msgheader = msgHeader(int(len(b_openmsg)/8), 1)
+                msg = b_msgheader + b_openmsg
+                msglen = int(len(msg)/8)
+                return int(msg, 2), msglen 
 
 
 
@@ -74,6 +87,8 @@ def openMsg(version, asn, holdtime, routerid, isoption):
         b_optlen = format(0, '08b')
     return b_version + b_asn + b_holdtime + b_routerid + b_optlen
 
+def notificateMsg():
+    return msgHeader(0, 3) # 本来はNOTFICATEのエラーコードの長さをいれる
 
 def binaryVersion(value):
     if type(value) == int:
@@ -133,31 +148,56 @@ def replyOpen(MsgArray):
     data, msglen = bgp(1,2, MsgArray)
     return data.to_bytes(int(msglen), 'big')
 
+def notificateJudg(data):
+    for i,bytes in enumerate(data, 1):
+                    if i == 19:
+                        # Type
+                        if bytes == 3:
+                            return True
+                        else:
+                            return False
+
+def KeepAlive():
+    print("KEEPALIVE")
+    t = threading.Timer(10, KeepAlive)
+    t.start()
+
+def HoldTime(time):
+    t = threading.Timer(time, KeepAlive)
+    t.start()
+    print("TimeOut")
+
+def Idle():
+    pass
+
 def server(IPADDR, PORT):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind((IPADDR, int(PORT)))
+        s.bind(("", int(PORT)))
         s.listen()
-        while True:
+        flag = True
+        while flag:
             conn, addr = s.accept()
             with conn:
-                print("Connected by ", addr)    
+                print("Connected by ", addr)
                 data = conn.recv(4096)
                 BgpMsgArray = []
                 type = 0
-                for i,bit in enumerate(data, 1):
-                    BgpMsgArray.append(bit)
+                for i,bytes in enumerate(data, 1):
+                    BgpMsgArray.append(bytes)
                     if i == 19:
                         # Type
-                        if bit == 1:
+                        if bytes == 1:
                             type = 1
                             print("receive OPEN Message")
-                        elif bit == 2:
+                            KeepAlive()
+                        elif bytes == 2:
                             type = 2
                             print("receive UPDATE Message")
-                        elif bit == 3:
+                        elif bytes == 3:
                             type = 3
+                            flag = False
                             print("receive NOTIFICATION Message")
-                        elif bit == 4:
+                        elif bytes == 4:
                             type = 4
                             print("receive KEEPALIVE Message")
                         else:
@@ -165,7 +205,11 @@ def server(IPADDR, PORT):
                 # Typeによる処理の変化
                 if type == 1:
                     replydata = replyOpen(BgpMsgArray)
+                    notificate = notificateJudg(replydata)
                     conn.send(replydata)
+                    if notificate:
+                        print("NOTIFICATION Error")
+                        flag = False
                 elif type == 2:
                     pass
                 elif type == 3:
@@ -176,43 +220,46 @@ def server(IPADDR, PORT):
                     pass
                 #conn.send('Retry?(y|n)'.encode('utf-8'))
 
+
 def client(IPADDR, PORT, DATA):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((IPADDR, int(PORT)))
         s.sendall(DATA)
-        data = s.recv(4096)
-        BgpMsgArray = []
-        type = 0
-        for i,bit in enumerate(data, 1):
-            BgpMsgArray.append(bit)
-            if i == 19:
-                # Type
-                if bit == 1:
-                    type = 1
-                    print("receive OPEN Message")
-                elif bit == 2:
-                    type = 2
-                    print("receive UPDATE Message")
-                elif bit == 3:
-                    type = 3
-                    print("receive NOTIFICATION Message")
-                elif bit == 4:
-                    type = 4
-                    print("receive KEEPALIVE Message")
-                else:
-                    print("Unknown")
-        # Typeによる処理の変化
-        if type == 1:
-            pass
-        elif type == 2:
-            pass
-        elif type == 3:
-            pass
-        elif type == 4:
-            pass
-        else:
-            pass
-        #conn.send('Retry?(y|n)'.encode('utf-8'))
+        flag = True
+        while flag:
+            data = s.recv(4096)
+            BgpMsgArray = []
+            type = 0
+            for i,bytes in enumerate(data, 1):
+                BgpMsgArray.append(bytes)
+                if i == 19:
+                    # Type
+                    if bytes == 1:
+                        type = 1
+                        print("receive OPEN Message")
+                    elif bytes == 2:
+                        type = 2
+                        print("receive UPDATE Message")
+                    elif bytes == 3:
+                        type = 3
+                        print("receive NOTIFICATION Message")
+                        flag = False
+                    elif bytes == 4:
+                        type = 4
+                        print("receive KEEPALIVE Message")
+                    else:
+                        print("Unknown")
+            # Typeによる処理の変化
+            if type == 1:
+                pass
+            elif type == 2:
+                pass
+            elif type == 3:
+                pass
+            elif type == 4:
+                pass
+            else:
+                pass
     print('Received', repr(data))
 
 def main():
