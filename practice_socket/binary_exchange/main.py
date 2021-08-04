@@ -18,8 +18,6 @@ import random
 # init
 state = 0
 
-
-
 def bgp(type, direction, MsgArray=None):
     with open('config.yaml', 'r') as yml:
         config = yaml.safe_load(yml)
@@ -81,52 +79,55 @@ def bgp(type, direction, MsgArray=None):
                 return int(msg, 2), msglen 
     else:
         pass
-    
+
 def bgpCheck(MsgArray):
     with open('config.yaml', 'r') as yml:
         config = yaml.safe_load(yml)
     OPENCONF = config['open'][0]
     print("Version: " + str(MsgArray[19]))
     if OPENCONF['version'] == MsgArray[19]:
-        print("Version Match")
+        #print("Version Match")
+        pass
     else:
-        print("Version Unmatch")
+        #print("Version Unmatch")
         errorMsg = notificateMsg()
     
     # ASN
     print("ASN: " + str(MsgArray[20] * 8 + MsgArray[21]))
     if OPENCONF['MyASN'] == (MsgArray[20] * 8 + MsgArray[21]):
-        print("ASN Mastch(iBGP)")
+        #print("ASN Mastch(iBGP)")
+        pass
     else:
-        print("ASN Unmastch(eBGP)")
+        #print("ASN Unmastch(eBGP)")
+        pass
     
     # HoldTime
     print("HoldTime: " + str(MsgArray[22] * 8 + MsgArray[23]))
     if OPENCONF['HoldTime'] > (MsgArray[22] * 8 + MsgArray[23]):
-        print("Use Neighber HoldTime ")
+        #print("Use Neighber HoldTime ")
+        pass
     else:
-        print("Use My HoldTime")
+        #print("Use My HoldTime")
+        pass
     
     # RouterID
     print("Router-id: " + str(MsgArray[24]) + '.' + str(MsgArray[25]) + '.' + str(MsgArray[26]) + '.' + str(MsgArray[27]))
     if OPENCONF['RouterID'] == (str(MsgArray[24]) + '.' + str(MsgArray[25]) + '.' + str(MsgArray[26]) + '.' + str(MsgArray[27])):
-        print("Duplication Router-ID")
+        #print("Duplication Router-ID")
         errorMsg = notificateMsg()
     else:
-        print("Remote-AS OK")
+        #print("Remote-AS OK")
+        pass
     if 'errorMsg' in locals():
         return True
     else:
         return False
-
 
 def msgHeader(uppermsgLen, type):
     b_marker = format(0xffffffffffffffffffffffffffffffff, '0128b')
     b_length = format(uppermsgLen + 19, '016b')
     b_type = format(type, '08b')
     return b_marker + b_length + b_type
-
-
 
 def openMsg(version, asn, holdtime, routerid, isoption):
     b_version = binaryVersion(version)
@@ -232,16 +233,16 @@ def Idle():
 
 def checkMessage(type):
     if type == 1:
-        print("receive OPEN Message")
+        print("<< receive OPEN Message")
         return 1
     elif type == 2:
-        print("receive UPDATE Message")
+        print("<< receive UPDATE Message")
         return 2
     elif type == 3:
-        print("receive NOTIFICATION Message")
+        print("<< receive NOTIFICATION Message")
         return 3
     elif type == 4:
-        print("receive KEEPALIVE Message")
+        print("<< receive KEEPALIVE Message")
         return 4
     else:
         print("Unknown")
@@ -261,8 +262,7 @@ def State():
     s.bind(("", 179))
     s.listen()
     while state == 1:
-        timeout = random.randint(1,5)
-        s.settimeout(timeout)
+        s.settimeout(random.randint(1,5))
         try:
             conn, addr = s.accept()
             print("!! Connected by ", addr, " !!")
@@ -281,11 +281,12 @@ def State():
                     replydata = replyOpen(BgpMsgArray)
                     notificate = notificateJudg(replydata)
                     conn.sendall(replydata)
-                    print(">> Send OPEN Message")
                     state = 5
                     if notificate:
-                        print("NOTIFICATION Error")
+                        print(">> Send NOTIFICATION Message")
                         state = 1
+                    else:
+                        print(">> Send OPEN Message")
                 elif type == 2:
                     # recv UPDATE
                     pass
@@ -322,164 +323,208 @@ def State():
                         state = 1
         except socket.timeout:
             # クライアント側となる処理
-            print("例外発生!!!")
-            s.close()
-            print("timeout...")
-            senddata, msglen = bgp(1, 1)
             print("##### Access #####")
             print("try: " + ip)
+            senddata, msglen = bgp(1, 1)
+            s.close()
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.connect((ip, 179))
-            s.sendall(senddata.to_bytes(int(msglen), 'big')) # Open送信
-            print(">> Send Open Message")
-            state = 4 # Opensent
-            while state == 4 or state == 5:
-                s.settimeout(20)
-                try:
-                    data = s.recv(4096)
-                    s.settimeout(None)
-                    BgpMsgArray = []
-                    for i,bytes in enumerate(data, 1):
-                        BgpMsgArray.append(bytes)
-                        if i == 19:
-                            type = checkMessage(bytes)
-                    if type == 1: # Open受信
-                        check = bgpCheck(BgpMsgArray)
-                        if check:
-                            print("enter True")
-                            errorMsg = notificateMsg()
-                            msglen = int(len(errorMsg)/8)
-                            senddata = int(errorMsg, 2).to_bytes(int(msglen), 'big')
-                            s.sendall(senddata)
-                            print(">> Send NOTIFICATION MESSAGE")
-                        else:
-                            msg = keepaliveMsg()
-                            msglen = int(len(msg)/8)
-                            senddata = int(msg, 2).to_bytes(int(msglen), 'big')
-                            s.sendall(senddata) # KEEPALIVE送信
-                            print(">> Send KEEPALIVE Message")
-                            state = 5
-                    elif type == 3: # NOTIFICATE受信
+            try:
+                s.connect((ip, 179))
+                s.sendall(senddata.to_bytes(int(msglen), 'big')) # Open送信
+                print(">> Send Open Message")
+                state = 4 # Opensent
+                while state == 4 or state == 5:
+                    s.settimeout(20)
+                    try:
+                        data = s.recv(4096)
+                        s.settimeout(None)
+                        BgpMsgArray = []
+                        for i,bytes in enumerate(data, 1):
+                            BgpMsgArray.append(bytes)
+                            if i == 19:
+                                type = checkMessage(bytes)
+                        if type == 1: # Open受信
+                            check = bgpCheck(BgpMsgArray)
+                            if check:
+                                print("enter True")
+                                errorMsg = notificateMsg()
+                                msglen = int(len(errorMsg)/8)
+                                senddata = int(errorMsg, 2).to_bytes(int(msglen), 'big')
+                                s.sendall(senddata)
+                                s.close()
+                                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                                s.bind(("", 179))
+                                s.listen()
+                                print(">> Send NOTIFICATION MESSAGE")
+                            else:
+                                msg = keepaliveMsg()
+                                msglen = int(len(msg)/8)
+                                senddata = int(msg, 2).to_bytes(int(msglen), 'big')
+                                s.sendall(senddata) # KEEPALIVE送信
+                                print(">> Send KEEPALIVE Message")
+                                state = 5
+                        elif type == 3: # NOTIFICATE受信
+                            state = 1
+                        elif type == 4: # KEEPALIVE受信
+                            if state == 5:
+                                state = 6 # Established
+                                print("Established!!!")
+                    except:
+                        print("例外発生！")
+                        errorMsg = notificateMsg()
+                        msglen = int(len(errorMsg)/8)
+                        senddata = int(errorMsg, 2).to_bytes(int(msglen), 'big')
+                        s.sendall(senddata)
                         state = 1
-                    elif type == 4: # KEEPALIVE受信
-                        if state == 5:
-                            state = 6 # Established
-                            print("Established!!!")
-                except:
-                    errorMsg = notificateMsg()
-                    msglen = int(len(errorMsg)/8)
-                    senddata = int(errorMsg, 2).to_bytes(int(msglen), 'big')
-                    s.sendall(senddata)
-                    state = 1
+            except:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.bind(("", 179))
+                s.listen()
 
-
-def server(IPADDR, PORT):
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("", int(PORT)))
-        s.listen()
-        flag = True
-        while flag:
-            conn, addr = s.accept()
-            with conn:
-                print("Connected by ", addr)
-                data = conn.recv(4096)
-                BgpMsgArray = []
-                type = 0
-                for i,bytes in enumerate(data, 1):
-                    BgpMsgArray.append(bytes)
-                    if i == 19:
-                        # Type
-                        if bytes == 1:
-                            type = 1
-                            print("<< Receive OPEN Message")
-                            KeepAlive()
-                        elif bytes == 2:
-                            type = 2
-                            print("<< Receive UPDATE Message")
-                        elif bytes == 3:
-                            type = 3
-                            flag = False
-                            print("<< Receive NOTIFICATION Message")
-                        elif bytes == 4:
-                            type = 4
-                            print("<< Receive KEEPALIVE Message")
-                        else:
-                            print("Unknown")
-                # Typeによる処理の変化
-                if type == 1:
-                    replydata = replyOpen(BgpMsgArray)
-                    notificate = notificateJudg(replydata)
-                    conn.sendall(replydata)
-                    if notificate:
-                        print("NOTIFICATION Error")
-                        flag = False
-                elif type == 2:
-                    pass
-                elif type == 3:
-                    pass
-                elif type == 4:
-                    pass
-                else:
-                    pass
-                #conn.sendall('Retry?(y|n)'.encode('utf-8'))
-
-
-def client(IPADDR, PORT, DATA):
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.connect((IPADDR, int(PORT)))
-        s.sendall(DATA)
-        flag = True
-        while flag:
-            data = s.recv(4096)
+def server():
+    with open('config.yaml', 'r') as yml:
+        config = yaml.safe_load(yml)
+    NEIGHBORCONF = config['neighbor'][0]
+    ip = NEIGHBORCONF['IP']
+    remoteAs = NEIGHBORCONF['remote-as']
+    # Idle
+    state = 1
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(("", 179))
+    s.listen()
+    while state == 1:
+        conn, addr = s.accept()
+        print("!! Connected by ", addr, " !!")
+        state = 4 # OpenSent
+        s.settimeout(None)
+        with conn:
+            data = conn.recv(4096)
             BgpMsgArray = []
             type = 0
             for i,bytes in enumerate(data, 1):
                 BgpMsgArray.append(bytes)
                 if i == 19:
-                    # Type
-                    if bytes == 1:
-                        type = 1
-                        print("receive OPEN Message")
-                    elif bytes == 2:
-                        type = 2
-                        print("receive UPDATE Message")
-                    elif bytes == 3:
-                        type = 3
-                        print("receive NOTIFICATION Message")
-                        flag = False
-                    elif bytes == 4:
-                        type = 4
-                        print("receive KEEPALIVE Message")
-                    else:
-                        print("Unknown")
-            # Typeによる処理の変化
+                    type = checkMessage(bytes)
             if type == 1:
-                pass
+                # recv Open
+                replydata = replyOpen(BgpMsgArray)
+                notificate = notificateJudg(replydata)
+                conn.sendall(replydata)
+                state = 5
+                if notificate:
+                    print(">> Send NOTIFICATION Message")
+                    state = 1
+                else:
+                    print(">> Send OPEN Message")
             elif type == 2:
+                # recv UPDATE
                 pass
             elif type == 3:
-                pass
+                # recv NOTI
+                state = 1
             elif type == 4:
+                # recv KEEP
                 pass
             else:
                 pass
-    print('Received', repr(data))
+            if state == 5: # OpenConfirm
+                conn.settimeout(10)
+                try:
+                    data = conn.recv(4096) # KEEPALIVE待ち
+                    conn.settimeout(None)
+                    BgpMsgArray = []
+                    for i,bytes in enumerate(data, 1):
+                        BgpMsgArray.append(bytes)
+                        if i == 19:
+                            type = checkMessage(bytes)
+                    if type == 4: #KEEPALIVE
+                        state = 6 # Established
+                        print(">> Send KEEPALIVE Message")
+                        sendmsg = keepaliveMsg()
+                        msglen = int(len(sendmsg)/8)
+                        senddata = int(sendmsg, 2).to_bytes(int(msglen), 'big')
+                        conn.sendall(senddata)
+                        print("Established!!!")
+                    elif type == 3: # NOTIFICATE
+                        state = 1
+                except:
+                    print("例外発生!!!")
+                    state = 1
+
+
+
+def client():
+    with open('config.yaml', 'r') as yml:
+        config = yaml.safe_load(yml)
+    NEIGHBORCONF = config['neighbor'][0]
+    ip = NEIGHBORCONF['IP']
+    remoteAs = NEIGHBORCONF['remote-as']
+    # Idle
+    state = 1
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(("", 179))
+    s.connect((ip, 179))
+    print("##### Access #####")
+    print("try: " + ip)
+    senddata, msglen = bgp(1, 1)
+    s.sendall(senddata.to_bytes(int(msglen), 'big')) # Open送信
+    print(">> Send Open Message")
+    state = 4 # Opensent
+    while state == 4 or state == 5:
+        try:
+            data = s.recv(4096)
+            BgpMsgArray = []
+            for i,bytes in enumerate(data, 1):
+                BgpMsgArray.append(bytes)
+                if i == 19:
+                    type = checkMessage(bytes)
+            if type == 1: # Open受信
+                check = bgpCheck(BgpMsgArray)
+                if check:
+                    print("enter True")
+                    errorMsg = notificateMsg()
+                    msglen = int(len(errorMsg)/8)
+                    senddata = int(errorMsg, 2).to_bytes(int(msglen), 'big')
+                    s.sendall(senddata)
+                    s.close()
+                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    s.bind(("", 179))
+                    s.listen()
+                    print(">> Send NOTIFICATION MESSAGE")
+                else:
+                    msg = keepaliveMsg()
+                    msglen = int(len(msg)/8)
+                    senddata = int(msg, 2).to_bytes(int(msglen), 'big')
+                    s.sendall(senddata) # KEEPALIVE送信
+                    print(">> Send KEEPALIVE Message")
+                    state = 5
+            elif type == 3: # NOTIFICATE受信
+                state = 1
+            elif type == 4: # KEEPALIVE受信
+                if state == 5:
+                    state = 6 # Established
+                    print("Established!!!")
+        except:
+            print("例外発生！")
+            errorMsg = notificateMsg()
+            msglen = int(len(errorMsg)/8)
+            senddata = int(errorMsg, 2).to_bytes(int(msglen), 'big')
+            s.sendall(senddata)
+            state = 1
+
 
 def main():
     arg = sys.argv
     if 2 <= len(arg):
         cmd = arg[1]
         if cmd == "sv":
-            if 4 <= len(arg):
-                server(arg[2], arg[3])
+            server()
         elif cmd == "cl":
-            if 4 <= len(arg):
-                data, msglen = bgp(1, 1)
-                client(arg[2], arg[3], data.to_bytes(int(msglen), 'big'))
+            client()
         else:
             print("Unexpected argument(sv or cl)")
     else:
         print("Requires an argument")
 
 if __name__ == "__main__":
-    State()
+    main()

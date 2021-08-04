@@ -1,5 +1,5 @@
 neighbor:
-  - IP: 10.1.1.2
+  - IP: "10.1.1.2"
     remote-as: 2
 open:
   - version: 4
