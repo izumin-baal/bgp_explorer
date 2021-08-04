@@ -84,7 +84,7 @@ def bgpCheck(MsgArray):
     with open('config.yaml', 'r') as yml:
         config = yaml.safe_load(yml)
     OPENCONF = config['open'][0]
-    print("Version: " + str(MsgArray[19]))
+    #print("Version: " + str(MsgArray[19]))
     if OPENCONF['version'] == MsgArray[19]:
         #print("Version Match")
         pass
@@ -93,7 +93,7 @@ def bgpCheck(MsgArray):
         errorMsg = notificateMsg()
     
     # ASN
-    print("ASN: " + str(MsgArray[20] * 8 + MsgArray[21]))
+    #print("ASN: " + str(MsgArray[20] * 8 + MsgArray[21]))
     if OPENCONF['MyASN'] == (MsgArray[20] * 8 + MsgArray[21]):
         #print("ASN Mastch(iBGP)")
         pass
@@ -102,7 +102,7 @@ def bgpCheck(MsgArray):
         pass
     
     # HoldTime
-    print("HoldTime: " + str(MsgArray[22] * 8 + MsgArray[23]))
+    #print("HoldTime: " + str(MsgArray[22] * 8 + MsgArray[23]))
     if OPENCONF['HoldTime'] > (MsgArray[22] * 8 + MsgArray[23]):
         #print("Use Neighber HoldTime ")
         pass
@@ -111,7 +111,7 @@ def bgpCheck(MsgArray):
         pass
     
     # RouterID
-    print("Router-id: " + str(MsgArray[24]) + '.' + str(MsgArray[25]) + '.' + str(MsgArray[26]) + '.' + str(MsgArray[27]))
+    #print("Router-id: " + str(MsgArray[24]) + '.' + str(MsgArray[25]) + '.' + str(MsgArray[26]) + '.' + str(MsgArray[27]))
     if OPENCONF['RouterID'] == (str(MsgArray[24]) + '.' + str(MsgArray[25]) + '.' + str(MsgArray[26]) + '.' + str(MsgArray[27])):
         #print("Duplication Router-ID")
         errorMsg = notificateMsg()
@@ -382,6 +382,7 @@ def State():
                 s.listen()
 
 def server():
+    print("#### Listen ####")
     with open('config.yaml', 'r') as yml:
         config = yaml.safe_load(yml)
     NEIGHBORCONF = config['neighbor'][0]
@@ -392,6 +393,7 @@ def server():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(("", 179))
     s.listen()
+    print("Listen: 179")
     while state == 1:
         conn, addr = s.accept()
         print("!! Connected by ", addr, " !!")
