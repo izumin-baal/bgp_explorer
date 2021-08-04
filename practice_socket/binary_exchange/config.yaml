@@ -1,3 +1,6 @@
+neighbor:
+  - IP: 10.1.1.2
+    remote-as: 2
 open:
   - version: 4
     MyASN: 1
