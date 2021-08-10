@@ -129,7 +129,15 @@ def msgHeader(uppermsgLen, type):
     b_type = format(type, '08b')
     return b_marker + b_length + b_type
 
-def openMsg(version, asn, holdtime, routerid, isoption):
+def openMsg():
+    with open('config.yaml', 'r') as yml:
+        config = yaml.safe_load(yml)
+    NEIGHBORCONF = config['bgp']['parameter']
+    version = NEIGHBORCONF["Version"]
+    asn = NEIGHBORCONF["MyASN"]
+    holdtime = NEIGHBORCONF["HoldTime"]
+    routerid = NEIGHBORCONF["RouterID"]
+    isoption = NEIGHBORCONF["Option"]
     b_version = binaryVersion(version)
     b_asn = binaryASN(asn)
     b_holdtime = binaryHoldtime(holdtime)
@@ -452,8 +460,6 @@ def server():
                 except:
                     print("例外発生!!!")
                     state = 1
-
-
 
 def client():
     with open('config.yaml', 'r') as yml:

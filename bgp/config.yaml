@@ -1,0 +1,10 @@
+bgp:
+  neighbor:
+    - IP: "10.1.1.2"
+      Remote-as: 2
+  parameter:
+    - Version: 4
+      MyASN: 1
+      HoldTime: 40
+      RouterID: "1.1.1.1"
+      Option: False
