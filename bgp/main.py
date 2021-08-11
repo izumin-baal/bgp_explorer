@@ -140,7 +140,8 @@ class StateMachine:
                 if i == 19:
                     type = self.checkMessage(bytes)
             if type == BGP_MSG_UPDATE or type == BGP_MSG_KEEPALIVE:
-                pass
+                if type == BGP_MSG_UPDATE:
+                    self.getUpdate(BgpMsgArray)
             else:
                 print("received Error")
                 self.state = BGP_STATE_IDLE
@@ -150,6 +151,42 @@ class StateMachine:
             self.state = BGP_STATE_IDLE
         except:
             sys.exit()
+
+    def getUpdate(self,msg):
+        messageLength = msg[16] * 256 + msg[17]
+        withdrawnLength = msg[19] * 256 + msg[20]
+        if withdrawnLength != 0:
+            if debug:
+                print("withdrawn Routes Length: ", withdrawnLength)
+        pathAttributeLength = msg[21 + withdrawnLength] * 256 + msg[22 + withdrawnLength]
+        if pathAttributeLength != 0:
+            if debug:
+                print("Total Path Attribute Length: ", pathAttributeLength)
+        nlriStartByte = 23 + withdrawnLength + pathAttributeLength
+        while msg[nlriStartByte] is not None and nlriStartByte < messageLength:
+            print("hoge")
+            prefixLength = msg[nlriStartByte]
+            if prefixLength <= 8:
+                prefix = str(msg[nlriStartByte + 1]) + ".0.0.0/" + str(prefixLength)
+                nlriStartByte += 2
+            elif prefixLength <= 16:
+                prefix = str(msg[nlriStartByte + 1]) + "." + str(msg[nlriStartByte + 2]) + ".0.0/" + str(prefixLength)
+                nlriStartByte += 3
+            elif prefixLength <= 24:
+                prefix = str(msg[nlriStartByte + 1]) + "." + str(msg[nlriStartByte + 2]) + "." + str(msg[nlriStartByte + 3]) + ".0/" + str(prefixLength)
+                nlriStartByte += 4
+            else:
+                prefix = str(msg[nlriStartByte + 1]) + "." + str(msg[nlriStartByte + 2]) + "." + str(msg[nlriStartByte + 3]) + "." + str(msg[nlriStartByte + 4]) + "/" + str(prefixLength)
+                nlriStartByte += 5
+            print("Receive UPDATE NLRI Prefix: ", prefix)
+
+
+
+
+
+
+
+
 
     def intervalKeepalive(self):
         while self.state == BGP_STATE_ESTABLISHED:
