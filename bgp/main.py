@@ -48,7 +48,6 @@ class StateMachine:
             self.established()
         else:
             pass
-        
 
     def tcpNego(self):
         if self.t:
@@ -217,10 +216,10 @@ class StateMachine:
                     print("neighbor IP is incorrect")
                 errorMsg = True
         # ASN
-        if NEIGHBORCONF['Remote-as'] == (msg[20] * 8 + msg[21]):
+        if NEIGHBORCONF['Remote-as'] == (msg[20] * 256 + msg[21]):
             pass
         else:
-            print(msg[20] * 8 + msg[21])
+            print(msg[20] * 256 + msg[21])
             if debug:
                 print("neighbor ASN is incorrect")
             errorMsg = True
@@ -237,16 +236,15 @@ class StateMachine:
                 print("neighbor RouterID is incorrect")
             errorMsg = True
         # Holdtime決定
-        if PARAMETERCONF['HoldTime'] < (msg[22] * 8 + msg[23]):
+        if PARAMETERCONF['HoldTime'] < (msg[22] * 256 + msg[23]):
             if debug:
                 print("Use my HoldTime")
             self.holdtime = PARAMETERCONF['HoldTime']
         else:
             if debug:
                 print("Use Neighbor Holdtime")
-            self.holdtime = msg[22] * 8 + msg[23]
+            self.holdtime = msg[22] * 256 + msg[23]
             self.holdtimecnt = self.holdtime
-
         if errorMsg:
             self.state = BGP_STATE_IDLE
             return True
