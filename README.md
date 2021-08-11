@@ -2,6 +2,13 @@
 ## 目的
 seccampをきっかけとしてBGPを完全に理解するためにPythonでBGPを創り上げる。
 
+## 実行
+config.yamlを調整した後下記コマンド
+> #cd bgp  
+> // レスポンダーモード  
+> #python main.py sv  
+> // イニシエーターモード  
+> #python main.py cl
 ## わかりやすくまとめた図??
 ### BGPとは
 ![図2](img/bgp_sequence-sequence.png)
