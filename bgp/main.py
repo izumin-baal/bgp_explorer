@@ -3,42 +3,48 @@ import socket
 import yaml
 import threading
 import time
-import random
 import bgpformat
 
 # STATE
-# Idle: 1 
-# Connect: 2
-# Active: 3
-# OpenSent: 4
-# OpenConfirm: 5
-# Established: 6
-#
-# mode
-# 1: respnder
-# 2: initiator
+BGP_STATE_IDLE = 1
+BGP_STATE_CONNECT = 2
+BGP_STATE_ACTIVE = 3
+BGP_STATE_OPENSENT = 4
+BGP_STATE_OPENCONFIRM = 5
+BGP_STATE_ESTABLISHED = 6
+# MODE
+BGP_MODE_RESPONDER = 1
+BGP_MODE_INITIATOR = 2
+# MESSAGE TYPE
+BGP_MSG_OPEN = 1
+BGP_MSG_UPDATE = 2
+BGP_MSG_NOTIFICATION = 3
+BGP_MSG_KEEPALIVE = 4
+BGP_MSG_ROUTEREFRESH = 5
+
+# debug mode
 debug = True
 
 class StateMachine:
     def __init__(self, ip, remoteAs, mode):
         self.ip = ip
         self.remoteAs = remoteAs
-        self.state = 1
+        self.state = BGP_STATE_IDLE
         self.mode = mode
         self.t = None
 
     def stateMachine(self):
-        if self.state == 1:
+        if self.state == BGP_STATE_IDLE:
             self.tcpNego()
-        elif self.state == 2:
+        elif self.state == BGP_STATE_CONNECT:
             self.open()
-        elif self.state == 3:
+        elif self.state == BGP_STATE_ACTIVE:
             pass
-        elif self.state == 4:
+        elif self.state == BGP_STATE_OPENSENT:
             self.opensent()
-        elif self.state == 5:
+        elif self.state == BGP_STATE_OPENCONFIRM:
             self.openconfirm()
-        elif self.state == 6:
+        elif self.state == BGP_STATE_ESTABLISHED:
             self.established()
         else:
             pass
@@ -47,24 +53,24 @@ class StateMachine:
     def tcpNego(self):
         if self.t:
             self.t.join()
-        if self.mode == 1:
+        if self.mode == BGP_MODE_RESPONDER:
             self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.s.bind(("", 179))
             self.s.listen()
             self.conn, self.addr = self.s.accept()
             print("Connected by", self.addr)
-            self.state = 4
+            self.state = BGP_STATE_OPENSENT
         else:
             self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.s.connect((self.ip, 179))
             print("Connect to " + self.ip)
-            self.state = 2
+            self.state = BGP_STATE_CONNECT
 
     def opensent(self):
-        while self.state == 4:
-            if self.mode == 1:
+        while self.state == BGP_STATE_OPENSENT:
+            if self.mode == BGP_MODE_RESPONDER:
                 data = self.conn.recv(4096)
             else:
                 data = self.s.recv(4096)                
@@ -73,27 +79,27 @@ class StateMachine:
                 BgpMsgArray.append(bytes)
                 if i == 19:
                     type = self.checkMessage(bytes)
-            if type == 1:
+            if type == BGP_MSG_OPEN:
                 check = self.peerjadge(BgpMsgArray)
                 if check: # True:Error False:OK
                     self.notification()
-                    if self.mode == 1:
+                    if self.mode == BGP_MODE_RESPONDER:
                         #self.conn.close()
                         pass
                     else:
                         self.s.close()
                     time.sleep(10)
-                    self.state = 1
+                    self.state = BGP_STATE_IDLE
                 else:
-                    if self.mode == 1:
+                    if self.mode == BGP_MODE_RESPONDER:
                         self.open()
-                        self.state = 5
+                        self.state = BGP_STATE_OPENCONFIRM
                     else:
                         self.keepalive()
-                        self.state = 5
+                        self.state = BGP_STATE_OPENCONFIRM
 
     def openconfirm(self):
-        if self.mode == 1:
+        if self.mode == BGP_MODE_RESPONDER:
             data = self.conn.recv(4096)
         else:
             data = self.s.recv(4096)
@@ -102,30 +108,30 @@ class StateMachine:
             BgpMsgArray.append(bytes)
             if i == 19:
                 type = self.checkMessage(bytes)
-        if type == 4:
-            self.state = 6
+        if type == BGP_MSG_KEEPALIVE:
+            self.state = BGP_STATE_ESTABLISHED
             self.t = threading.Thread(target=self.intervalKeepalive)
             self.t.start()
             print("*** Established!!! ***")
             print("*** Neighbor Up ***")
-        elif type == 3:
-            if self.mode == 1:
+        elif type == BGP_MSG_NOTIFICATION:
+            if self.mode == BGP_MODE_RESPONDER:
                 #self.conn.close()
                 pass
             else:
                 self.s.close()
             time.sleep(10)
-            self.state = 1
+            self.state = BGP_STATE_IDLE
         else:
             print("Unknown Error")
 
     def established(self):
-        if self.mode == 1:
+        if self.mode == BGP_MODE_RESPONDER:
             self.conn.settimeout(self.holdtime)
         else:
             self.s.settimeout(self.holdtime)
         try:
-            if self.mode == 1:
+            if self.mode == BGP_MODE_RESPONDER:
                 data = self.conn.recv(4096)
             else:
                 data = self.s.recv(4096)
@@ -134,38 +140,38 @@ class StateMachine:
                 BgpMsgArray.append(bytes)
                 if i == 19:
                     type = self.checkMessage(bytes)
-            if type == 2 or type == 4:
+            if type == BGP_MSG_UPDATE or type == BGP_MSG_KEEPALIVE:
                 pass
             else:
                 print("received Error")
-                self.state = 1
+                self.state = BGP_STATE_IDLE
         except socket.timeout:
             print("TimeOut")
             print("*** Neighbor Down ***")
-            self.state = 1
+            self.state = BGP_STATE_IDLE
         except:
             sys.exit()
 
     def intervalKeepalive(self):
-        while self.state == 6:
+        while self.state == BGP_STATE_ESTABLISHED:
             self.keepalive()
             time.sleep(int(self.holdtime/4))
 
     def open(self):
-        if self.mode == 1:
+        if self.mode == BGP_MODE_RESPONDER:
             msg = bgpformat.b_openMsg()
             self.conn.sendall(msg)
             print(">> Send Open Message")
-            self.state = 4 # Opensent
+            self.state = BGP_STATE_OPENSENT # Opensent
         else:
             msg = bgpformat.b_openMsg()
             self.s.sendall(msg)
             print(">> Send Open Message")
-            self.state = 4 # Opensent
+            self.state = BGP_STATE_OPENSENT # Opensent
 
     def keepalive(self):
         msg = bgpformat.b_keepaliveMsg()
-        if self.mode == 1:
+        if self.mode == BGP_MODE_RESPONDER:
             self.conn.sendall(msg)
         else:
             self.s.sendall(msg)
@@ -173,23 +179,23 @@ class StateMachine:
 
     def notification(self):
         msg = bgpformat.b_notificateMsg()
-        if self.mode == 1:
+        if self.mode == BGP_MODE_RESPONDER:
             self.conn.sendall(msg)
         else:
             self.s.sendall(msg)
         print(">> Send NOTIFICATION Message")
 
     def checkMessage(self, type):
-        if type == 1:
+        if type == BGP_MSG_OPEN:
             print("<< receive OPEN Message")
             return 1
-        elif type == 2:
+        elif type == BGP_MSG_UPDATE:
             print("<< receive UPDATE Message")
             return 2
-        elif type == 3:
+        elif type == BGP_MSG_NOTIFICATION:
             print("<< receive NOTIFICATION Message")
             return 3
-        elif type == 4:
+        elif type == BGP_MSG_KEEPALIVE:
             print("<< receive KEEPALIVE Message")
             return 4
         else:
@@ -203,7 +209,7 @@ class StateMachine:
         PARAMETERCONF = config['bgp']['parameter'][0]
         errorMsg = False
         # IP
-        if self.mode == 1:
+        if self.mode == BGP_MODE_RESPONDER:
             if NEIGHBORCONF['IP'] == self.addr[0]:
                 pass
             else:
@@ -242,7 +248,7 @@ class StateMachine:
             self.holdtimecnt = self.holdtime
 
         if errorMsg:
-            self.state = 1
+            self.state = BGP_STATE_IDLE
             return True
         else:
             return False
@@ -254,7 +260,7 @@ def server():
     NEIGHBORCONF = config['bgp']['neighbor'][0]
     ip = NEIGHBORCONF["IP"]
     remoteAs = NEIGHBORCONF["Remote-as"]
-    state = StateMachine(ip, remoteAs, 1)
+    state = StateMachine(ip, remoteAs, BGP_MODE_RESPONDER)
     while True:
         state.stateMachine()
 
@@ -265,7 +271,7 @@ def client():
     NEIGHBORCONF = config['bgp']['neighbor'][0]
     ip = NEIGHBORCONF["IP"]
     remoteAs = NEIGHBORCONF["Remote-as"]
-    state = StateMachine(ip, remoteAs, 2)
+    state = StateMachine(ip, remoteAs, BGP_MODE_INITIATOR)
     while True:
         state.stateMachine()
 
