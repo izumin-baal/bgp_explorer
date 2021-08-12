@@ -112,7 +112,7 @@ class StateMachine:
             self.t = threading.Thread(target=self.intervalKeepalive)
             self.t.start()
             print("*** Established!!! ***")
-            print("*** Neighbor Up ***")
+            print("\033[33m", "*** Neighbor Up ***", "\033[0m")
         elif type == BGP_MSG_NOTIFICATION:
             if self.mode == BGP_MODE_RESPONDER:
                 #self.conn.close()
@@ -147,7 +147,7 @@ class StateMachine:
                 self.state = BGP_STATE_IDLE
         except socket.timeout:
             print("TimeOut")
-            print("*** Neighbor Down ***")
+            print("\033[33m", "*** Neighbor Down ***", "\033[0m")
             self.state = BGP_STATE_IDLE
         except:
             sys.exit()
@@ -158,27 +158,42 @@ class StateMachine:
         if withdrawnLength != 0:
             if debug:
                 print("withdrawn Routes Length: ", withdrawnLength)
+                withdrawnStartByte = 21
+            while withdrawnStartByte < 21 + withdrawnLength:
+                prefixLength = msg[withdrawnStartByte]
+                if prefixLength <= 8:
+                    prefix_w = str(msg[withdrawnStartByte + 1]) + ".0.0.0/" + str(prefixLength)
+                    withdrawnStartByte += 2
+                elif prefixLength <= 16:
+                    prefix_w = str(msg[withdrawnStartByte + 1]) + "." + str(msg[withdrawnStartByte + 2]) + ".0.0/" + str(prefixLength)
+                    withdrawnStartByte += 3
+                elif prefixLength <= 24:
+                    prefix_w = str(msg[withdrawnStartByte + 1]) + "." + str(msg[withdrawnStartByte + 2]) + "." + str(msg[withdrawnStartByte + 3]) + ".0/" + str(prefixLength)
+                    withdrawnStartByte += 4
+                else:
+                    prefix_w = str(msg[withdrawnStartByte + 1]) + "." + str(msg[withdrawnStartByte + 2]) + "." + str(msg[withdrawnStartByte + 3]) + "." + str(msg[withdrawnStartByte + 4]) + "/" + str(prefixLength)
+                    withdrawnStartByte += 5
+            print("\033[31m","Receive UPDATE Withdrawn Prefix: ", prefix_w, "\033[0m")
         pathAttributeLength = msg[21 + withdrawnLength] * 256 + msg[22 + withdrawnLength]
         if pathAttributeLength != 0:
             if debug:
                 print("Total Path Attribute Length: ", pathAttributeLength)
         nlriStartByte = 23 + withdrawnLength + pathAttributeLength
-        while msg[nlriStartByte] is not None and nlriStartByte < messageLength:
-            print("hoge")
+        while nlriStartByte < messageLength:
             prefixLength = msg[nlriStartByte]
             if prefixLength <= 8:
-                prefix = str(msg[nlriStartByte + 1]) + ".0.0.0/" + str(prefixLength)
+                prefix_n = str(msg[nlriStartByte + 1]) + ".0.0.0/" + str(prefixLength)
                 nlriStartByte += 2
             elif prefixLength <= 16:
-                prefix = str(msg[nlriStartByte + 1]) + "." + str(msg[nlriStartByte + 2]) + ".0.0/" + str(prefixLength)
+                prefix_n = str(msg[nlriStartByte + 1]) + "." + str(msg[nlriStartByte + 2]) + ".0.0/" + str(prefixLength)
                 nlriStartByte += 3
             elif prefixLength <= 24:
-                prefix = str(msg[nlriStartByte + 1]) + "." + str(msg[nlriStartByte + 2]) + "." + str(msg[nlriStartByte + 3]) + ".0/" + str(prefixLength)
+                prefix_n = str(msg[nlriStartByte + 1]) + "." + str(msg[nlriStartByte + 2]) + "." + str(msg[nlriStartByte + 3]) + ".0/" + str(prefixLength)
                 nlriStartByte += 4
             else:
-                prefix = str(msg[nlriStartByte + 1]) + "." + str(msg[nlriStartByte + 2]) + "." + str(msg[nlriStartByte + 3]) + "." + str(msg[nlriStartByte + 4]) + "/" + str(prefixLength)
+                prefix_n = str(msg[nlriStartByte + 1]) + "." + str(msg[nlriStartByte + 2]) + "." + str(msg[nlriStartByte + 3]) + "." + str(msg[nlriStartByte + 4]) + "/" + str(prefixLength)
                 nlriStartByte += 5
-            print("Receive UPDATE NLRI Prefix: ", prefix)
+            print("\033[32m","Receive UPDATE NLRI Prefix: ", prefix_n, "\033[0m")
 
 
 
