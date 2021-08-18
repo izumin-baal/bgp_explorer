@@ -171,7 +171,7 @@ class StateMachine:
                 else:
                     prefix_w = str(msg[withdrawnStartByte + 1]) + "." + str(msg[withdrawnStartByte + 2]) + "." + str(msg[withdrawnStartByte + 3]) + "." + str(msg[withdrawnStartByte + 4]) + "/" + str(prefixLength)
                     withdrawnStartByte += 5
-            print("\033[31m","Receive UPDATE Withdrawn Prefix: ", prefix_w, "\033[0m")
+                print("\033[31m","Receive UPDATE Withdrawn Prefix: ", prefix_w, "\033[0m")
         pathAttributeLength = msg[21 + withdrawnLength] * 256 + msg[22 + withdrawnLength]
         nlriStartByte = 23 + withdrawnLength + pathAttributeLength
         while nlriStartByte < messageLength:
