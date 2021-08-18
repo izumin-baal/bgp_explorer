@@ -156,9 +156,7 @@ class StateMachine:
         messageLength = msg[16] * 256 + msg[17]
         withdrawnLength = msg[19] * 256 + msg[20]
         if withdrawnLength != 0:
-            if debug:
-                print("withdrawn Routes Length: ", withdrawnLength)
-                withdrawnStartByte = 21
+            withdrawnStartByte = 21
             while withdrawnStartByte < 21 + withdrawnLength:
                 prefixLength = msg[withdrawnStartByte]
                 if prefixLength <= 8:
@@ -175,9 +173,6 @@ class StateMachine:
                     withdrawnStartByte += 5
             print("\033[31m","Receive UPDATE Withdrawn Prefix: ", prefix_w, "\033[0m")
         pathAttributeLength = msg[21 + withdrawnLength] * 256 + msg[22 + withdrawnLength]
-        if pathAttributeLength != 0:
-            if debug:
-                print("Total Path Attribute Length: ", pathAttributeLength)
         nlriStartByte = 23 + withdrawnLength + pathAttributeLength
         while nlriStartByte < messageLength:
             prefixLength = msg[nlriStartByte]
@@ -194,6 +189,9 @@ class StateMachine:
                 prefix_n = str(msg[nlriStartByte + 1]) + "." + str(msg[nlriStartByte + 2]) + "." + str(msg[nlriStartByte + 3]) + "." + str(msg[nlriStartByte + 4]) + "/" + str(prefixLength)
                 nlriStartByte += 5
             print("\033[32m","Receive UPDATE NLRI Prefix: ", prefix_n, "\033[0m")
+        if debug:
+            print("Total Path Attribute Length: ", pathAttributeLength)
+            print("withdrawn Routes Length: ", withdrawnLength)
 
 
 
