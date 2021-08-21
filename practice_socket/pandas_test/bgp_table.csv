@@ -1,0 +1,4 @@
+address,prefix,next_hop,as_path,community
+1.1.1.1,31,1,,
+1.1.1.1,31,,,
+1.1.1.1,31,,,

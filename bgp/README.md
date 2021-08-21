@@ -1,0 +1,2 @@
+## memo
+- IOSはnetworkコマンドを打った直後にUPDATEが走るのでconsoleで入力しても経路をまとめて送ることができない点に違和感。IOS-XRはcommitが必要なのでまとめてUPDATEできるので良い。

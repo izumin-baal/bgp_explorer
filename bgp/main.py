@@ -4,6 +4,7 @@ import yaml
 import threading
 import time
 import bgpformat
+import rw
 
 # STATE
 BGP_STATE_IDLE = 1
@@ -172,6 +173,7 @@ class StateMachine:
                     prefix_w = str(msg[withdrawnStartByte + 1]) + "." + str(msg[withdrawnStartByte + 2]) + "." + str(msg[withdrawnStartByte + 3]) + "." + str(msg[withdrawnStartByte + 4]) + "/" + str(prefixLength)
                     withdrawnStartByte += 5
                 print("\033[31m","Receive UPDATE Withdrawn Prefix: ", prefix_w, "\033[0m")
+                rw.del_from_bgptable(prefix_w)
         pathAttributeLength = msg[21 + withdrawnLength] * 256 + msg[22 + withdrawnLength]
         nlriStartByte = 23 + withdrawnLength + pathAttributeLength
         while nlriStartByte < messageLength:
@@ -189,17 +191,10 @@ class StateMachine:
                 prefix_n = str(msg[nlriStartByte + 1]) + "." + str(msg[nlriStartByte + 2]) + "." + str(msg[nlriStartByte + 3]) + "." + str(msg[nlriStartByte + 4]) + "/" + str(prefixLength)
                 nlriStartByte += 5
             print("\033[32m","Receive UPDATE NLRI Prefix: ", prefix_n, "\033[0m")
+            rw.into_bgptable(prefix_n)
         if debug:
             print("Total Path Attribute Length: ", pathAttributeLength)
             print("withdrawn Routes Length: ", withdrawnLength)
-
-
-
-
-
-
-
-
 
     def intervalKeepalive(self):
         while self.state == BGP_STATE_ESTABLISHED:
