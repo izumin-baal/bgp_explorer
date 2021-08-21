@@ -19,16 +19,12 @@ def into_bgptable(prefixaddr, next_hop=None, as_path=None, community=None):
         data.to_csv('bgp_table.csv', mode='a', index=False, header=False)
 
 def del_from_bgptable(addrprefix):
-    print('del()')
     df = pd.read_csv('bgp_table.csv', dtype=object ,encoding='utf_8')
     address, prefix = addrprefix.split('/')
     for cnt,i in enumerate(df.itertuples()):
         p = i.address +  '/' + i.prefix
         if addrprefix == p:
             # 削除処理
-            print(cnt)
             df.drop(cnt,inplace=True)
-            print(df)
             df.to_csv('bgp_table.csv', mode='w', index=False)
-            print('match')
             break
