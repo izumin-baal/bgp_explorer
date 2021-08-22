@@ -3,10 +3,22 @@ from pandas.core.frame import DataFrame
 
 debug = True
 
-def into_bgptable(addrprefix, next_hop=None, as_path=None, community=None):
+def into_bgptable(addrprefix, attributeArray):
+    # 初期化
+    address = None
+    prefix = None
+    next_hop = None
+    as_path = None
+    community = None
     df = pd.read_csv('bgp_table.csv', dtype=object ,encoding='utf_8')
     flag = True
     address, prefix = addrprefix.split('/')
+    if 'next_hop' in attributeArray:
+        next_hop = attributeArray['next_hop']
+    if 'as_path' in attributeArray:
+        as_path = " ".join([str(_) for _ in attributeArray['as_path']])
+    if 'community' in attributeArray:
+        community = attributeArray['community']
     for cnt,i in enumerate(df.itertuples()):
         p = i.address +  '/' + i.prefix
         if addrprefix == p:
@@ -18,7 +30,6 @@ def into_bgptable(addrprefix, next_hop=None, as_path=None, community=None):
             df.at[cnt, 'community'] = community
             flag = False
             df.to_csv('bgp_table.csv', mode='w', index=False)
-            print('match')
             break
     if flag:
         #新規追加

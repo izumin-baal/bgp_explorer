@@ -143,14 +143,26 @@ class StateMachine:
             BgpMsgArray = []
             for i,bytes in enumerate(data, 1):
                 BgpMsgArray.append(bytes)
-                if i == 19:
-                    type = self.checkMessage(bytes)
-            if type == BGP_MSG_UPDATE or type == BGP_MSG_KEEPALIVE:
-                if type == BGP_MSG_UPDATE:
-                    self.getUpdate(BgpMsgArray)
-            else:
-                print("received Error")
-                self.state = BGP_STATE_IDLE
+            msglencnt = len(BgpMsgArray)
+
+            while True:
+                msglen = BgpMsgArray[16] * 256 + BgpMsgArray[17]
+                msglencnt -= msglen
+                type = self.checkMessage(BgpMsgArray[18])    
+                if type == BGP_MSG_UPDATE or type == BGP_MSG_KEEPALIVE:
+                    if type == BGP_MSG_UPDATE:
+                        self.getUpdate(BgpMsgArray)
+                elif type == BGP_MSG_NOTIFICATION:
+                    print("received notification")
+                    self.state = BGP_STATE_IDLE
+                else:
+                    print("received Error")
+                    self.state = BGP_STATE_IDLE
+                if msglencnt <= 0:
+                    break
+                del BgpMsgArray[0:msglen]
+
+        
         except socket.timeout:
             print("TimeOut")
             print("\033[33m", "*** Neighbor Down ***", "\033[0m")
@@ -185,10 +197,11 @@ class StateMachine:
         pathAttributeStartByte = 23 + withdrawnLength
         if pathAttributeLength != 0:
             pathAttrLenCnt = pathAttributeLength
-            to_bgptable_array = []
+            to_bgptable_array = {}
             if debug:
                 print("## pathAttribute ##")
                 print("Total Path Attribute Length: ", pathAttributeLength)
+                print("--------------------------")
             while pathAttrLenCnt > 0:
                 attributeFlag =  msg[pathAttributeStartByte]
                 attributetype = msg[pathAttributeStartByte + 1]
@@ -209,7 +222,7 @@ class StateMachine:
                         attributeArray.append(msg[pathAttributeStartByte + 4 + i])
                     pathAttributeStartByte += (4 + attributelength)
                     pathAttrLenCnt -= attributelength + 4
-                to_bgptable_array.append(self.selectPathAttribute(attributeArray))
+                to_bgptable_array.update(self.selectPathAttribute(attributeArray))
         # NLRI
         nlriStartByte = 23 + withdrawnLength + pathAttributeLength
         while nlriStartByte < messageLength:
@@ -232,7 +245,6 @@ class StateMachine:
             print("withdrawn Routes Length: ", withdrawnLength)
 
     def selectPathAttribute(self, attributeArray):
-        print(attributeArray)
         attributeflag =  attributeArray[0]
         attributetype = attributeArray[1]
         attributelength = attributeArray[2]
@@ -240,7 +252,10 @@ class StateMachine:
         for i in attributeArray[3:]:
             parameterArray.append(i)
         if attributetype == BGP_PASSATTR_ORIGIN:
-            pass
+            if debug:
+                print('# ORIGIN #')
+                print('origin: ', parameterArray[0])
+            return {'origin': parameterArray[0]}
         elif attributetype == BGP_PASSATTR_AS_PATH:
             # SegmentType
             if parameterArray[0] == 1:
@@ -253,20 +268,25 @@ class StateMachine:
             segmentLen = parameterArray[1]
             as_path = []
             for i in range(segmentLen):
-                as_path.append(parameterArray[i + 2] * 256 + parameterArray[i + 3])
+                as_path.append(parameterArray[(i*2) + 2] * 256 + parameterArray[(i*2) + 3])
             if debug:
-                print('segmentLen: ', segmentLen)
+                print('# AS_PATH #')
                 print('as_path: ', as_path)
+            return {'as_path': as_path}
         elif attributetype == BGP_PASSATTR_NEXT_HOP:
             next_hop = str(parameterArray[0]) + "." + str(parameterArray[1]) + "." + str(parameterArray[2]) + "." + str(parameterArray[3])
             if debug:
-                print(parameterArray)
+                print('# NEXT_HOP #')
                 print('next_hop: ', next_hop)
+            return {'next_hop': next_hop}
         elif attributetype == BGP_PASSATTR_MED:
-            pass
+            med = parameterArray[0] * (256 ^ 4) + parameterArray[1] * (256 ^ 3) + parameterArray[2] * (256 ^ 2) + parameterArray[3]
+            if debug:
+                print('# MED #')
+                print('med: ', med)
+            return {'med': med}
         else:
             pass
-
         if debug:
             print("--------------------------")
             print("attributeflag:", format(attributeArray[0], '08b'))
