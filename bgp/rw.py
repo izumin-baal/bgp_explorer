@@ -1,8 +1,13 @@
 import pandas as pd
 import routing as rt
+import yaml
 from pandas.core.frame import DataFrame
 
 debug = True
+
+with open('config.yaml', 'r') as yml:
+    config = yaml.safe_load(yml)
+MYASN = config['bgp']['parameter'][0]['MyASN']
 
 def into_bgptable(addrprefix, attributeArray):
     # 初期化
@@ -32,13 +37,33 @@ def into_bgptable(addrprefix, attributeArray):
             flag = False
             df.to_csv('data/bgp_table.csv', mode='w', index=False)
             # add route
-            rt.into_routingtable(address, prefix, next_hop)
+            Flaginto = True
+            for asn in as_path.split(" "):
+                # BGPLOOP
+                if int(asn) == MYASN:
+                    if debug:
+                        print("!!!!!!!!!!!!!!!!!!")
+                        print("Loop route")
+                        print("!!!!!!!!!!!!!!!!!!")
+                    Flaginto = False
+            if Flaginto:
+                rt.into_routingtable(address, prefix, next_hop)
             break
     if flag:
         #新規追加
         data = pd.DataFrame([[address, prefix, next_hop, as_path, community]], columns=['address', 'prefix', 'next_hop', 'as_path', 'community'])
         data.to_csv('data/bgp_table.csv', mode='a', index=False, header=False)
-        rt.into_routingtable(address, prefix, next_hop)
+        Flaginto = True
+        for asn in as_path.split(" "):
+            # BGPLOOP
+            if int(asn) == MYASN:
+                if debug:
+                    print("!!!!!!!!!!!!!!!!!!")
+                    print("Loop route")
+                    print("!!!!!!!!!!!!!!!!!!")
+                Flaginto = False
+        if Flaginto:
+            rt.into_routingtable(address, prefix, next_hop)
     if debug:
         print("######### BGP_TABLE.csv #########")
         df = pd.read_csv('data/bgp_table.csv', dtype=object ,encoding='utf_8')
