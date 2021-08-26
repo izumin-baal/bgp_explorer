@@ -1,14 +1,17 @@
 bgp:
   neighbor:
-    - IP: "10.1.1.2"
+    - IP: "10.2.2.2"
       Remote-as: 2
   parameter:
     - Version: 4
       MyASN: 1
       HoldTime: 40
       RouterID: "1.1.1.1"
-      NextHop: "10.1.1.1"
+      NextHop: "10.2.2.1"
       Option: False
   advertisement:
-    - Prefix: '99.99.99.99/32'
+    - Prefix: '10.1.1.0/30'
+    - Prefix: '192.168.200.0/24'
+    - Prefix: '192.168.201.0/24'
+    - Prefix: '192.168.202.0/24'
       
