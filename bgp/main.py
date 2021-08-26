@@ -5,6 +5,7 @@ import threading
 import time
 import bgpformat
 import rw
+import os
 
 # STATE
 BGP_STATE_IDLE = 1
@@ -430,6 +431,11 @@ def client():
         state.stateMachine()
 
 if __name__ == "__main__":
+    if os.geteuid() == 0 and os.getuid() == 0 :
+        pass
+    else:
+        print("Root Only!!!")
+        sys.exit()
     arg = sys.argv
     if 2 <= len(arg):
         cmd = arg[1]
