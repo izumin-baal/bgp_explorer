@@ -119,6 +119,7 @@ class StateMachine:
             self.t.start()
             print("*** Established!!! ***")
             print("\033[33m", "*** Neighbor Up ***", "\033[0m")
+            self.update()
         elif type == BGP_MSG_NOTIFICATION:
             if self.mode == BGP_MODE_RESPONDER:
                 #self.conn.close()
@@ -298,9 +299,6 @@ class StateMachine:
             print("attributelength:", attributeArray[2])
             print("--------------------------")
 
-
-
-
     def intervalKeepalive(self):
         while self.state == BGP_STATE_ESTABLISHED:
             self.keepalive()
@@ -317,6 +315,14 @@ class StateMachine:
             self.s.sendall(msg)
             print(">> Send Open Message")
             self.state = BGP_STATE_OPENSENT # Opensent
+
+    def update(self):
+        msg = bgpformat.b_updateMsg()
+        if self.mode == BGP_MODE_RESPONDER:
+            self.conn.sendall(msg)
+        else:
+            self.s.sendall(msg)
+        print(">> Send UPDATE Message")
 
     def keepalive(self):
         msg = bgpformat.b_keepaliveMsg()

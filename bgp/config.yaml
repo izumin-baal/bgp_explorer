@@ -7,4 +7,8 @@ bgp:
       MyASN: 1
       HoldTime: 40
       RouterID: "1.1.1.1"
+      NextHop: "10.1.1.1"
       Option: False
+  advertisement:
+    - Prefix: '99.99.99.99/32'
+      

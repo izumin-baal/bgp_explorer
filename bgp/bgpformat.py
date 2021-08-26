@@ -36,6 +36,45 @@ def b_openMsg():
     int_msg = int(msg, 2)
     return int_msg.to_bytes(msgLen, 'big')
 
+def b_updateMsg():
+    b_updateFormat = b_updateformat()
+    b_updateMsg = b_msgHeader(int(len(b_updateFormat)/8), 2)
+    msg = b_updateMsg + b_updateFormat
+    msgLen = int(len(msg)/8)
+    int_msg = int(msg, 2)
+    print()
+    return int_msg.to_bytes(msgLen, 'big')
+
+def b_updateformat():
+    with open('config.yaml', 'r') as yml:
+        config = yaml.safe_load(yml)
+    b_withdrawn = format(0, '016b')
+    # ORGIN: IGP
+    b_origin = format(64, '08b') + format(1, '08b') + format(1, '08b') + format(0, '08b')
+    # AS_PATH: MyASN
+    b_asn = format(64, '08b') + format(2, '08b') + format(4, '08b') + format(2, '08b') + format(1, '08b') + format(int(config['bgp']['parameter'][0]['MyASN']), '016b')
+    # NEXT_HOP: MyIP
+    nexthop = config['bgp']['parameter'][0]['NextHop'].split('.')
+    b_nexthop = format(64, '08b') + format(3, '08b') + format(4, '08b') + format(int(nexthop[0]), '08b') + format(int(nexthop[1]), '08b') + format(int(nexthop[2]), '08b') + format(int(nexthop[3]), '08b') 
+    # MED: 0
+    b_med = format(128, '08b') + format(4, '08b') + format(4, '08b') + format(0, '032b')
+    attributeLen = int(len(b_origin + b_asn + b_nexthop + b_med)/8)
+    b_pathattr = format(attributeLen, '016b') + b_origin + b_asn + b_nexthop + b_med
+    b_nlri = ""
+    for prefix in config['bgp']['advertisement']:
+        address, prefix = prefix['Prefix'].split('/')
+        splitaddress = address.split('.')
+        b_nlri += format(int(prefix), '08b')
+        if int(prefix) <= 8:
+            b_nlri += format(int(splitaddress[0]), '08b')
+        elif int(prefix) <= 16:
+            b_nlri += (format(int(splitaddress[0]), '08b') + format(int(splitaddress[1]), '08b'))
+        elif int(prefix) <= 24:
+            b_nlri += (format(int(splitaddress[0]), '08b') + format(int(splitaddress[1]), '08b') + format(int(splitaddress[2]), '08b'))
+        else:
+            b_nlri += (format(int(splitaddress[0]), '08b') + format(int(splitaddress[1]), '08b') + format(int(splitaddress[2]), '08b') + format(int(splitaddress[3]), '08b'))
+    return b_withdrawn + b_pathattr + b_nlri
+
 def b_notificateMsg():
     b_msg = b_msgHeader(0, 3) # 本来はNOTFICATEのエラーコードの長さをいれる
     msgLen = int(len(b_msg)/8)

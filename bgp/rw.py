@@ -11,7 +11,7 @@ def into_bgptable(addrprefix, attributeArray):
     next_hop = None
     as_path = None
     community = None
-    df = pd.read_csv('bgp_table.csv', dtype=object ,encoding='utf_8')
+    df = pd.read_csv('data/bgp_table.csv', dtype=object ,encoding='utf_8')
     flag = True
     address, prefix = addrprefix.split('/')
     if 'next_hop' in attributeArray:
@@ -30,23 +30,23 @@ def into_bgptable(addrprefix, attributeArray):
             df.at[cnt, 'as_path'] = as_path
             df.at[cnt, 'community'] = community
             flag = False
-            df.to_csv('bgp_table.csv', mode='w', index=False)
+            df.to_csv('data/bgp_table.csv', mode='w', index=False)
             # add route
             rt.into_routingtable(address, prefix, next_hop)
             break
     if flag:
         #新規追加
         data = pd.DataFrame([[address, prefix, next_hop, as_path, community]], columns=['address', 'prefix', 'next_hop', 'as_path', 'community'])
-        data.to_csv('bgp_table.csv', mode='a', index=False, header=False)
+        data.to_csv('data/bgp_table.csv', mode='a', index=False, header=False)
         rt.into_routingtable(address, prefix, next_hop)
     if debug:
         print("######### BGP_TABLE.csv #########")
-        df = pd.read_csv('bgp_table.csv', dtype=object ,encoding='utf_8')
+        df = pd.read_csv('data/bgp_table.csv', dtype=object ,encoding='utf_8')
         print(df)
         print("#################################")
 
 def del_from_bgptable(addrprefix, ip):
-    df = pd.read_csv('bgp_table.csv', dtype=object ,encoding='utf_8')
+    df = pd.read_csv('data/bgp_table.csv', dtype=object ,encoding='utf_8')
     address, prefix = addrprefix.split('/')
     for cnt,i in enumerate(df.itertuples()):
         p = i.address +  '/' + i.prefix
@@ -54,7 +54,7 @@ def del_from_bgptable(addrprefix, ip):
             if str(ip) == str(i.next_hop):
                 # 削除処理
                 df.drop(cnt,inplace=True)
-                df.to_csv('bgp_table.csv', mode='w', index=False)
+                df.to_csv('data/bgp_table.csv', mode='w', index=False)
                 rt.del_routingtable(address, prefix, ip)
                 break
     if debug:
