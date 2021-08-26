@@ -33,7 +33,7 @@ debug = True
 
 class StateMachine:
     def __init__(self, ip, remoteAs, mode):
-        self.ip = ip
+        self.addr = ip
         self.remoteAs = remoteAs
         self.state = BGP_STATE_IDLE
         self.mode = mode
@@ -69,8 +69,8 @@ class StateMachine:
         else:
             self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.s.connect((self.ip, 179))
-            print("Connect to " + self.ip)
+            self.s.connect((self.addr, 179))
+            print("Connect to " + self.addr)
             self.state = BGP_STATE_CONNECT
 
     def opensent(self):
@@ -191,7 +191,7 @@ class StateMachine:
                     prefix_w = str(msg[withdrawnStartByte + 1]) + "." + str(msg[withdrawnStartByte + 2]) + "." + str(msg[withdrawnStartByte + 3]) + "." + str(msg[withdrawnStartByte + 4]) + "/" + str(prefixLength)
                     withdrawnStartByte += 5
                 print("\033[31m","Receive UPDATE Withdrawn Prefix: ", prefix_w, "\033[0m")
-                rw.del_from_bgptable(prefix_w)
+                rw.del_from_bgptable(prefix_w, self.addr)
         # PathAttribute
         pathAttributeLength = msg[21 + withdrawnLength] * 256 + msg[22 + withdrawnLength]
         pathAttributeStartByte = 23 + withdrawnLength
