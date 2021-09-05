@@ -86,3 +86,16 @@ def del_from_bgptable(addrprefix, ip):
         print("######### BGP_TABLE.csv #########")
         print(df)
         print("#################################")
+
+
+def del_all():
+    print("############# init #############")
+    df = pd.read_csv('data/bgp_table.csv', dtype=object ,encoding='utf_8')
+    for cnt,i in enumerate(df.itertuples()):
+        # 削除処理
+        rt.del_routingtable(df.at[cnt, 'address'], df.at[cnt, 'prefix'], df.at[cnt, 'next_hop'])
+        df.drop(cnt,inplace=True)
+        df.to_csv('data/bgp_table.csv', mode='w', index=False)
+    print("################################")
+
+
