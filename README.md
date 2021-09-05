@@ -8,8 +8,8 @@ config.yamlを調整した後下記コマンド
 > // レスポンダーモード  
 > #python main.py sv  
 > // イニシエーターモード  
-> #python main.py cl
-> // ip routeとcsvの初期化
+> #python main.py cl  
+> // ip routeとcsvの初期化  
 > #python main.py init
 ## わかりやすくまとめた図??
 ### BGPとは
