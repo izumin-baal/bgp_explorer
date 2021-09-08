@@ -440,10 +440,8 @@ if __name__ == "__main__":
     if 2 <= len(arg):
         cmd = arg[1]
         if cmd == "sv":
-            rw.del_all() # csv,routingtable初期化
             server()
         elif cmd == "cl":
-            rw.del_all() # csv,routingtable初期化
             client()
         elif cmd == "init":
             rw.del_all() # csv,routingtable初期化
