@@ -1,7 +1,10 @@
 import subprocess
 
-def into_routingtable(addr, prefix, next_hop):
-    addrprefix = addr + '/' + prefix
+def into_routingtable(addrprefix, next_hop):
+    try:
+        subprocess.check_output(['ip', 'route', 'del', addrprefix])
+    except:
+        pass
     args = ['ip', 'route', 'add', addrprefix, 'via', next_hop]
     print("\033[33m", "ip route add ", addrprefix, "via", next_hop, "\033[0m")
     try:
@@ -9,8 +12,7 @@ def into_routingtable(addr, prefix, next_hop):
     except:
         print('ip route add error.')
 
-def del_routingtable(addr, prefix, next_hop):
-    addrprefix = addr + '/' + prefix
+def del_routingtable(addrprefix):
     args = ['ip', 'route', 'del', addrprefix, 'via', next_hop]
     print("\033[35m", "ip route del ", addrprefix, "via", next_hop, "\033[0m")
     try:

@@ -1,3 +1,4 @@
+from numpy import add
 import pandas as pd
 import routing as rt
 import yaml
@@ -49,13 +50,11 @@ def into_bgptable(addrprefix, attributeArray):
                             print("!!!!!!!!!!!!!!!!!!")
                         Flaginto = False
                 if Flaginto:
-                    rt.into_routingtable(address, prefix, next_hop)
                     check_ecmp(addrprefix)
                 break
     if flag:
         #新規追加
         data = pd.DataFrame([[address, prefix, next_hop, as_path, community]], columns=['address', 'prefix', 'next_hop', 'as_path', 'community'])
-        data.to_csv('../data/bgp_table.csv', mode='a', index=False, header=False)
         Flaginto = True
         for asn in as_path.split(" "):
             # BGPLOOP
@@ -66,7 +65,7 @@ def into_bgptable(addrprefix, attributeArray):
                     print("!!!!!!!!!!!!!!!!!!")
                 Flaginto = False
         if Flaginto:
-            rt.into_routingtable(address, prefix, next_hop)
+            data.to_csv('../data/bgp_table.csv', mode='a', index=False, header=False)
             check_ecmp(addrprefix)
     if debug:
         print("######### BGP_TABLE.csv #########")
@@ -84,7 +83,7 @@ def del_from_bgptable(addrprefix, ip):
                 # 削除処理
                 df.drop(cnt,inplace=True)
                 df.to_csv('../data/bgp_table.csv', mode='w', index=False)
-                rt.del_routingtable(address, prefix, ip)
+                check_ecmp(addrprefix)
                 break
     if debug:
         print("######### BGP_TABLE.csv #########")
@@ -96,7 +95,8 @@ def del_all():
     df = pd.read_csv('../data/bgp_table.csv', dtype=object ,encoding='utf_8')
     for cnt,i in enumerate(df.itertuples()):
         # 削除処理
-        rt.del_routingtable(df.at[cnt, 'address'], df.at[cnt, 'prefix'], df.at[cnt, 'next_hop'])
+        addrprefix = str(df.at[cnt, 'address']) + '/' + str(df.at[cnt, 'prefix'])
+        rt.del_routingtable(addrprefix)
         df.drop(cnt,inplace=True)
         df.to_csv('../data/bgp_table.csv', mode='w', index=False)
     print("################################")
@@ -110,3 +110,7 @@ def check_ecmp(addrprefix):
             ecmp_nexthop_array.append(i.next_hop)
     if len(ecmp_nexthop_array) > 1:
         rt.into_routingtable_ecmp(addrprefix, ecmp_nexthop_array)
+    elif len(ecmp_nexthop_array) == 1:
+        rt.into_routingtable(addrprefix, ecmp_nexthop_array[0])
+    else:
+        rt.del_routingtable(addrprefix)
