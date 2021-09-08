@@ -13,8 +13,8 @@ def into_routingtable(addrprefix, next_hop):
         print('ip route add error.')
 
 def del_routingtable(addrprefix):
-    args = ['ip', 'route', 'del', addrprefix, 'via', next_hop]
-    print("\033[35m", "ip route del ", addrprefix, "via", next_hop, "\033[0m")
+    args = ['ip', 'route', 'del', addrprefix]
+    print("\033[35m", "ip route del ", addrprefix, "\033[0m")
     try:
         res = subprocess.check_output(args)
     except:
