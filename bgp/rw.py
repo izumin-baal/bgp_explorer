@@ -1,4 +1,6 @@
 from numpy import add
+import random
+import time
 import pandas as pd
 import routing as rt
 import yaml
@@ -102,6 +104,7 @@ def del_all():
     print("################################")
 
 def check_ecmp(addrprefix):
+    time.sleep(random.random(2))
     df = pd.read_csv('../data/bgp_table.csv', dtype=object ,encoding='utf_8')
     ecmp_nexthop_array = []
     for cnt,i in enumerate(df.itertuples()):
