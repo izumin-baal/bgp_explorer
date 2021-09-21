@@ -5,7 +5,7 @@ def into_routingtable(addrprefix, next_hop):
         subprocess.check_output(['ip', 'route', 'del', addrprefix])
     except:
         pass
-    args = ['ip', 'route', 'add', addrprefix, 'via', next_hop]
+    args = ['ip', 'route', 'add', addrprefix, 'via', next_hop, 'proto', 'bgp']
     print("\033[33m", "ip route add ", addrprefix, "via", next_hop, "\033[0m")
     try:
         res = subprocess.check_output(args)
@@ -27,7 +27,7 @@ def into_routingtable_ecmp(addrprefix, ecmp_nexthop_array):
         pass
     args = ['ip', 'route', 'add', addrprefix]
     for i in range(len(ecmp_nexthop_array)):
-        args.extend(['nexthop', 'via', ecmp_nexthop_array[i]])
+        args.extend(['nexthop', 'via', ecmp_nexthop_array[i]], 'proto', 'bgp')
     print("\033[33m", *args, "\033[0m")
     try:
         res = subprocess.check_output(args)
