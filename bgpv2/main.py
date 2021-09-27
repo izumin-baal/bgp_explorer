@@ -35,6 +35,7 @@ debug = True
 # peer state
 peer_state = {}
 # 
+MSGTYPE_CHECK_BIN = 18
 class peerState(threading.Thread):
     def __init__(self, neighborip, remoteas, nexthop, mode):
         global peer_state
@@ -61,9 +62,14 @@ class peerState(threading.Thread):
                     #s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                     try:
                         peer_state[self.neighborip] == BGP_STATE_CONNECT
-                        s.connect((self.neighborip, 179))
                         if debug:
-                            print('Connect to ' + self.neighborip)
+                            self.printState()
+                        print('Connect to ' + self.neighborip)
+                        s.connect((self.neighborip, 179))
+                        self.sendOpen(s)
+                        peer_state[self.neighborip] == BGP_STATE_OPENSENT
+                        if debug:
+                            self.printState()
                     except:
                         peer_state[self.neighborip] = BGP_STATE_ACTIVE
                         if debug:
@@ -74,10 +80,11 @@ class peerState(threading.Thread):
                             self.printState()
                 if peer_state[self.neighborip] != BGP_STATE_IDLE and peer_state[self.neighborip] != BGP_STATE_ACTIVE:    
                     data = s.recv(4096)
-
+                    self.operateByState(s, data)
         elif self.mode == BGP_MODE_RESPONDER:
             pass
 
+    # State
     def printState(self):
         i = peer_state[self.neighborip]
         if i == 1:
@@ -94,31 +101,118 @@ class peerState(threading.Thread):
             statestr = "ESTABLISHED"
         print('Neighbor: ' + self.neighborip + ' is ' + statestr)
 
-    def stateMachine(self):
-        if self.state == BGP_STATE_IDLE:
-            #self.tcpNego()
+    def operateByState(self, s, data):
+        global peer_state
+        i = peer_state[self.neighborip]
+        decData = self.convertBinToDec(data)
+        if i == BGP_STATE_IDLE:
             pass
-        elif self.state == BGP_STATE_CONNECT:
-            self.open()
-        elif self.state == BGP_STATE_ACTIVE:
-            print('Neighbor ' + self.neighborip + ' State Active...')
-            time.sleep(20)
+        elif i == BGP_STATE_CONNECT:
             pass
-        elif self.state == BGP_STATE_OPENSENT:
-            self.opensent()
-        elif self.state == BGP_STATE_OPENCONFIRM:
+        elif i == BGP_STATE_ACTIVE:
+            pass
+        elif i == BGP_STATE_OPENSENT:
+            self.openSent(decData)
+        elif i == BGP_STATE_OPENCONFIRM:
             self.openconfirm()
-        elif self.state == BGP_STATE_ESTABLISHED:
+        elif i == BGP_STATE_ESTABLISHED:
             self.established()
         else:
             pass
-    
-    def tcpNego(self):
+
+    # Other
+    def convertBinToDec(self, data):
+        data_digit_array = []
+        for i, octet in enumerate(data):
+            data_digit_array.append(octet)
+            if i == MSGTYPE_CHECK_BIN:
+                if octet == BGP_MSG_OPEN:
+                    print('<< Recv OPEN')
+                elif octet == BGP_MSG_UPDATE:
+                    print('<< Recv UPDATE')
+                elif octet == BGP_MSG_NOTIFICATION:
+                    print('<< Recv NOTIFICATION')
+                elif octet == BGP_MSG_KEEPALIVE:
+                    print('<< Recv KEEPALIVE')
+                elif octet == BGP_MSG_ROUTEREFRESH:
+                    print('<< Recv ROUTEREFRESH')
+                else:
+                    print('<< Recv UNKNOWN')
+        return data_digit_array
+
+    # OPEN
+    def openSent(self, decData):
+        global peer_state
         if self.mode == BGP_MODE_INITIATOR:
-            pass
+            if decData[MSGTYPE_CHECK_BIN] == BGP_MSG_OPEN:
+                if self.peerJadge(decData):
+                    # OK
+                    pass
+                else:
+                    # False
+                    pass
+            else:
+                peer_state[self.neighborip] = BGP_STATE_IDLE
         elif self.mode == BGP_MODE_RESPONDER:
             pass
 
+    def sendOpen(self, s):
+        if self.mode == BGP_MODE_INITIATOR:
+            msg = bgpformat.b_openMsg()
+            s.sendall(msg)
+        elif self.mode == BGP_MODE_RESPONDER:
+            pass
+        print(">> Send OPEN")
+
+    def peerJadge(self, msg):
+        with open('config.yaml', 'r') as yml:
+            config = yaml.safe_load(yml)
+        NEIGHBORCONF = config['bgp']['neighbor'][0]
+        PARAMETERCONF = config['bgp']['parameter'][0]
+        errorMsg = False
+        # IP
+        if self.mode == BGP_MODE_RESPONDER:
+            if NEIGHBORCONF['IP'] == self.addr[0]:
+                pass
+            else:
+                if debug:
+                    print("neighbor IP is incorrect")
+                errorMsg = True
+        # ASN
+        if NEIGHBORCONF['Remote-as'] == (msg[20] * 256 + msg[21]):
+            pass
+        else:
+            print(msg[20] * 256 + msg[21])
+            if debug:
+                print("neighbor ASN is incorrect")
+            errorMsg = True
+        # Version
+        if PARAMETERCONF['Version'] == msg[19]:
+            pass
+        else:
+            if debug:
+                print("neighbor Version incorrect")
+            errorMsg = True
+        # Router-ID
+        if PARAMETERCONF['RouterID'] == (str(msg[24]) + '.' + str(msg[25]) + '.' + str(msg[26]) + '.' + str(msg[27])):
+            if debug:
+                print("neighbor RouterID is incorrect")
+            errorMsg = True
+        # Holdtime決定
+        if PARAMETERCONF['HoldTime'] < (msg[22] * 256 + msg[23]):
+            if debug:
+                print("Use my HoldTime")
+            self.holdtime = PARAMETERCONF['HoldTime']
+        else:
+            if debug:
+                print("Use Neighbor Holdtime")
+            self.holdtime = msg[22] * 256 + msg[23]
+            self.holdtimecnt = self.holdtime
+        if errorMsg:
+            self.state = BGP_STATE_IDLE
+            return True
+        else:
+            return False
 
 def server():
     print("### Responder mode ###")
