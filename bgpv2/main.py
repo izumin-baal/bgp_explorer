@@ -61,13 +61,13 @@ class peerState(threading.Thread):
                     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     #s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                     try:
-                        peer_state[self.neighborip] == BGP_STATE_CONNECT
+                        peer_state[self.neighborip] = BGP_STATE_CONNECT
                         if debug:
                             self.printState()
                         print('Connect to ' + self.neighborip)
                         s.connect((self.neighborip, 179))
                         self.sendOpen(s)
-                        peer_state[self.neighborip] == BGP_STATE_OPENSENT
+                        peer_state[self.neighborip] = BGP_STATE_OPENSENT
                         if debug:
                             self.printState()
                     except:
@@ -146,9 +146,11 @@ class peerState(threading.Thread):
         global peer_state
         if self.mode == BGP_MODE_INITIATOR:
             if decData[MSGTYPE_CHECK_BIN] == BGP_MSG_OPEN:
-                if self.peerJadge(decData):
+                if self.checkRecvOpen(decData):
                     # OK
-                    pass
+                    peer_state[self.neighborip] = BGP_STATE_OPENCONFIRM
+                    if debug:
+                        self.printState()
                 else:
                     # False
                     pass
@@ -165,15 +167,62 @@ class peerState(threading.Thread):
             pass
         print(">> Send OPEN")
 
+    def checkRecvOpen(self, decData):
+        global peer_state
+        with open('config.yaml', 'r') as yml:
+            config = yaml.safe_load(yml)
+        PARAMETERCONF = config['bgp']['parameter']
+        errorMsg = False
+        # ASN
+        if self.remoteas != (decData[20] * 256 + decData[21]):
+            if debug:
+                print('[E] neighbor ASN is incorrect.')
+            errorMsg = True
+        # Version
+        if PARAMETERCONF['Version'] != decData[19]:
+            if debug:
+                print('[E] neighbor Version incorrect.')
+            errorMsg = True
+        # Router-ID
+        if PARAMETERCONF['RouterID'] == (str(decData[24]) + '.' + str(decData[25]) + '.' + str(decData[26]) + '.' + str(decData[27])):
+            if debug:
+                print("[E] Duplicate RouterID.")
+            errorMsg = True
+        # Holdtime
+        if PARAMETERCONF['HoldTime'] < (decData[22] * 256 + decData[23]):
+            if debug:
+                print("[I] Use my HoldTime.")
+            self.holdtime = PARAMETERCONF['HoldTime']
+        else:
+            if debug:
+                print("[I] Use Neighbor Holdtime.")
+            self.holdtime = decData[22] * 256 + decData[23]
+        if debug:
+            print('===========================')
+            print('# Recv OPEN Parameter #')
+            print('Version: ' + str(decData[19]))
+            print('ASN: ' + str(decData[20] * 256 + decData[21]))
+            print('Router-ID: ' + str(decData[24]) + '.' + str(decData[25]) + '.' + str(decData[26]) + '.' + str(decData[27]))
+            print('HoldTime: ' + str(decData[22] * 256 + decData[23]))
+            print('Option: ' + str(decData[29]))
+            print('===========================')
+        if errorMsg:
+            peer_state[self.neighborip] = BGP_STATE_IDLE
+            ### Send NOTIFICATION ###
+            return False
+        else:
+            return True
+        
+
+
     def peerJadge(self, msg):
         with open('config.yaml', 'r') as yml:
             config = yaml.safe_load(yml)
-        NEIGHBORCONF = config['bgp']['neighbor'][0]
-        PARAMETERCONF = config['bgp']['parameter'][0]
+        PARAMETERCONF = config['bgp']['parameter']
         errorMsg = False
         # IP
         if self.mode == BGP_MODE_RESPONDER:
-            if NEIGHBORCONF['IP'] == self.addr[0]:
+            if NEIGHBORCONF['IP'] == self.neighborip:
                 pass
             else:
                 if debug:
