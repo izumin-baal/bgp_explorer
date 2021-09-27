@@ -10,7 +10,7 @@ debug = True
 
 with open('config.yaml', 'r') as yml:
     config = yaml.safe_load(yml)
-MYASN = config['bgp']['parameter'][0]['MyASN']
+MYASN = config['bgp']['parameter']['MyASN']
 
 def into_bgptable(addrprefix, attributeArray):
     # 初期化
