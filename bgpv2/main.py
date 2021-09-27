@@ -56,8 +56,8 @@ class peerState(threading.Thread):
                 if exitflag:
                     print("# " + self.neighborip + " thread down #")
                     sys.exit()
-                s = None
                 if  peer_state[self.neighborip] == BGP_STATE_IDLE:
+                    s = None
                     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     #s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                     try:
