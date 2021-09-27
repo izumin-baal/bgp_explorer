@@ -86,6 +86,7 @@ class peerState(threading.Thread):
 
     # State
     def printState(self):
+        global peer_state
         i = peer_state[self.neighborip]
         if i == 1:
             statestr = "IDLE"
