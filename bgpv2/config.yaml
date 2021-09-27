@@ -1,0 +1,21 @@
+bgp:
+  neighbor:
+      - NeighborIP: "10.2.2.2"
+        Remote-as: 2
+        NextHop: "10.2.2.1"
+      - NeighborIP: "10.2.2.2"
+        Remote-as: 2
+        NextHop: "10.2.2.1"
+  parameter:
+      Version: 4
+      MyASN: 1
+      HoldTime: 40
+      RouterID: "1.1.1.1"
+      Option: False
+  command:
+    network:
+      - '10.1.1.0/30'
+      - '192.168.200.0/24'
+      - '192.168.201.0/24'
+      - '192.168.202.0/24'
+
