@@ -125,7 +125,8 @@ class peerState(threading.Thread):
         elif i == BGP_STATE_OPENCONFIRM:
             self.openConfirm(s, decData)
         elif i == BGP_STATE_ESTABLISHED:
-            self.established()
+            while True:
+                pass
         else:
             pass
 
@@ -157,6 +158,7 @@ class peerState(threading.Thread):
             if decData[MSGTYPE_CHECK_BIN] == BGP_MSG_KEEPALIVE:
                 ### KEEPALIVE thread ###
                 peer_state[self.neighborip] = BGP_STATE_ESTABLISHED
+                s.settimeout(self.timeout)
                 t = threading.Thread(target=self.intervalKeepalive, args=(s))
                 t.start()
                 if debug:
