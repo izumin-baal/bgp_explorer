@@ -159,7 +159,7 @@ class peerState(threading.Thread):
                 ### KEEPALIVE thread ###
                 peer_state[self.neighborip] = BGP_STATE_ESTABLISHED
                 s.settimeout(self.timeout)
-                t = threading.Thread(target=self.intervalKeepalive, args=(s))
+                t = threading.Thread(target=self.intervalKeepalive, args=(s,))
                 t.start()
                 if debug:
                     self.printState()
