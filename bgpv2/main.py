@@ -66,6 +66,8 @@ class peerState(threading.Thread):
                             self.printState()
                         print('Connect to ' + self.neighborip)
                         s.connect((self.neighborip, 179))
+                        self.timeout = 5
+                        s.settimeout(self.timeout)
                         self.sendOpen(s)
                         peer_state[self.neighborip] = BGP_STATE_OPENSENT
                         if debug:
@@ -79,7 +81,13 @@ class peerState(threading.Thread):
                         if debug:
                             self.printState()
                 if peer_state[self.neighborip] != BGP_STATE_IDLE and peer_state[self.neighborip] != BGP_STATE_ACTIVE:    
-                    data = s.recv(4096)
+                    try:
+                        data = s.recv(4096)
+                    except socket.timeout:
+                        if peer_state[self.neighborip] == BGP_STATE_ESTABLISHED:
+                            print('[E] Timeout HoldTime.')
+                        else:
+                            print('[E] No response.')
                     self.operateByState(s, data)
         elif self.mode == BGP_MODE_RESPONDER:
             pass
@@ -113,52 +121,54 @@ class peerState(threading.Thread):
         elif i == BGP_STATE_ACTIVE:
             pass
         elif i == BGP_STATE_OPENSENT:
-            self.openSent(decData)
+            self.openSent(s, decData)
         elif i == BGP_STATE_OPENCONFIRM:
-            self.openconfirm()
+            self.openConfirm(s, decData)
         elif i == BGP_STATE_ESTABLISHED:
             self.established()
         else:
             pass
 
-    # Other
-    def convertBinToDec(self, data):
-        data_digit_array = []
-        for i, octet in enumerate(data):
-            data_digit_array.append(octet)
-            if i == MSGTYPE_CHECK_BIN:
-                if octet == BGP_MSG_OPEN:
-                    print('<< Recv OPEN')
-                elif octet == BGP_MSG_UPDATE:
-                    print('<< Recv UPDATE')
-                elif octet == BGP_MSG_NOTIFICATION:
-                    print('<< Recv NOTIFICATION')
-                elif octet == BGP_MSG_KEEPALIVE:
-                    print('<< Recv KEEPALIVE')
-                elif octet == BGP_MSG_ROUTEREFRESH:
-                    print('<< Recv ROUTEREFRESH')
-                else:
-                    print('<< Recv UNKNOWN')
-        return data_digit_array
-
-    # OPEN
-    def openSent(self, decData):
+    def openSent(self, s, decData):
         global peer_state
         if self.mode == BGP_MODE_INITIATOR:
             if decData[MSGTYPE_CHECK_BIN] == BGP_MSG_OPEN:
                 if self.checkRecvOpen(decData):
                     # OK
+                    self.sendKeepalive()
                     peer_state[self.neighborip] = BGP_STATE_OPENCONFIRM
                     if debug:
                         self.printState()
                 else:
                     # False
-                    pass
+                    peer_state[self.neighborip] = BGP_STATE_IDLE
+                    if debug:
+                        self.printState()
             else:
                 peer_state[self.neighborip] = BGP_STATE_IDLE
+                if debug:
+                    self.printState()
         elif self.mode == BGP_MODE_RESPONDER:
             pass
 
+    def openConfirm(self, s, decData):
+        global peer_state
+        if self.mode == BGP_MODE_INITIATOR:
+            if decData[MSGTYPE_CHECK_BIN] == BGP_MSG_KEEPALIVE:
+                ### KEEPALIVE thread ###
+                peer_state[self.neighborip] = BGP_STATE_ESTABLISHED
+                t = threading.Thread(target=self.intervalKeepalive, args=(s))
+                t.start()
+                if debug:
+                    self.printState()
+            else:
+                peer_state[self.neighborip] = BGP_STATE_IDLE
+                if debug:
+                    self.printState()
+        elif self.mode == BGP_MODE_RESPONDER:
+            pass
+
+    # OPEN
     def sendOpen(self, s):
         if self.mode == BGP_MODE_INITIATOR:
             msg = bgpformat.b_openMsg()
@@ -193,10 +203,12 @@ class peerState(threading.Thread):
             if debug:
                 print("[I] Use my HoldTime.")
             self.holdtime = PARAMETERCONF['HoldTime']
+            self.timeout = self.holdtime
         else:
             if debug:
                 print("[I] Use Neighbor Holdtime.")
             self.holdtime = decData[22] * 256 + decData[23]
+            self.timeout = self.holdtime
         if debug:
             print('===========================')
             print('# Recv OPEN Parameter #')
@@ -207,13 +219,9 @@ class peerState(threading.Thread):
             print('Option: ' + str(decData[29]))
             print('===========================')
         if errorMsg:
-            peer_state[self.neighborip] = BGP_STATE_IDLE
-            ### Send NOTIFICATION ###
             return False
         else:
             return True
-        
-
 
     def peerJadge(self, msg):
         with open('config.yaml', 'r') as yml:
@@ -222,14 +230,15 @@ class peerState(threading.Thread):
         errorMsg = False
         # IP
         if self.mode == BGP_MODE_RESPONDER:
-            if NEIGHBORCONF['IP'] == self.neighborip:
+            ##### Change ####
+            if self.neighborip == self.neighborip:
                 pass
             else:
                 if debug:
                     print("neighbor IP is incorrect")
                 errorMsg = True
         # ASN
-        if NEIGHBORCONF['Remote-as'] == (msg[20] * 256 + msg[21]):
+        if self.remoteas == (msg[20] * 256 + msg[21]):
             pass
         else:
             print(msg[20] * 256 + msg[21])
@@ -263,6 +272,39 @@ class peerState(threading.Thread):
             return True
         else:
             return False
+
+    # KEEPALIVE
+    def sendKeepalive(self,s):
+        msg = bgpformat.b_keepaliveMsg()
+        s.sendall(msg)
+        print(">> Send KEEPALIVE")
+    
+    def intervalKeepalive(self, s):
+        global peer_state
+        while peer_state[self.neighborip] == BGP_STATE_ESTABLISHED:
+            self.sendKeepalive(s)
+            time.sleep(int(self.holdtime/3))
+
+
+    # Other
+    def convertBinToDec(self, data):
+        data_digit_array = []
+        for i, octet in enumerate(data):
+            data_digit_array.append(octet)
+            if i == MSGTYPE_CHECK_BIN:
+                if octet == BGP_MSG_OPEN:
+                    print('<< Recv OPEN')
+                elif octet == BGP_MSG_UPDATE:
+                    print('<< Recv UPDATE')
+                elif octet == BGP_MSG_NOTIFICATION:
+                    print('<< Recv NOTIFICATION')
+                elif octet == BGP_MSG_KEEPALIVE:
+                    print('<< Recv KEEPALIVE')
+                elif octet == BGP_MSG_ROUTEREFRESH:
+                    print('<< Recv ROUTEREFRESH')
+                else:
+                    print('<< Recv UNKNOWN')
+        return data_digit_array
 
 def server():
     print("### Responder mode ###")
