@@ -10,7 +10,7 @@ def b_msgHeader(upperMsgLen, type):
 def b_openformat():
     with open('config.yaml', 'r') as yml:
         config = yaml.safe_load(yml)
-    PARAMETERCONF = config['bgp']['parameter'][0]
+    PARAMETERCONF = config['bgp']['parameter']
     version = PARAMETERCONF["Version"]
     asn = PARAMETERCONF["MyASN"]
     holdtime = PARAMETERCONF["HoldTime"]
@@ -52,7 +52,7 @@ def b_updateformat():
     # ORGIN: IGP
     b_origin = format(64, '08b') + format(1, '08b') + format(1, '08b') + format(0, '08b')
     # AS_PATH: MyASN
-    b_asn = format(64, '08b') + format(2, '08b') + format(4, '08b') + format(2, '08b') + format(1, '08b') + format(int(config['bgp']['parameter'][0]['MyASN']), '016b')
+    b_asn = format(64, '08b') + format(2, '08b') + format(4, '08b') + format(2, '08b') + format(1, '08b') + format(int(config['bgp']['parameter']['MyASN']), '016b')
     # NEXT_HOP: MyIP
     nexthop = config['bgp']['parameter'][0]['NextHop'].split('.')
     b_nexthop = format(64, '08b') + format(3, '08b') + format(4, '08b') + format(int(nexthop[0]), '08b') + format(int(nexthop[1]), '08b') + format(int(nexthop[2]), '08b') + format(int(nexthop[3]), '08b') 
