@@ -79,6 +79,7 @@ def client():
     with open('config.yaml', 'r') as yml:
         config = yaml.safe_load(yml)
     NEIGHBORCONF = config['bgp']['neighbor']
+    th = []
     for i, neighbor in enumerate(NEIGHBORCONF):
         neighborip = neighbor['NeighborIP']
         remoteas = neighbor['Remote-as']
