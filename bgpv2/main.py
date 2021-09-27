@@ -135,7 +135,7 @@ class peerState(threading.Thread):
             if decData[MSGTYPE_CHECK_BIN] == BGP_MSG_OPEN:
                 if self.checkRecvOpen(decData):
                     # OK
-                    self.sendKeepalive()
+                    self.sendKeepalive(s)
                     peer_state[self.neighborip] = BGP_STATE_OPENCONFIRM
                     if debug:
                         self.printState()
