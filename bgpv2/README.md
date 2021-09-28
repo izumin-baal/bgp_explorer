@@ -1,7 +1,8 @@
-## memo
-- IOSはnetworkコマンドを打った直後にUPDATEが走るのでconsoleで入力しても経路をまとめて送ることができない点に違和感。IOS-XRはcommitが必要なのでまとめてUPDATEできるので良い。
-- Ping通るところまで
-    - netlink: 低レイヤー
-    - pyroute2: いい感じにラッパーしてるやつ
-    - executeで直 #簡単なので採用!!
-    
+# BGPv2
+
+/bgpでは複数ピア対応ができていなかったため、<br>
+threadingで動作するように変更し1Process化するもの
+
+## 検証トポ
+デフォルトで以下のような状態で作成する
+![検証トポ](topo.png)
