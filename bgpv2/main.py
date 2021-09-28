@@ -6,7 +6,6 @@ import time
 import bgpformat
 import rw
 import os
-import keyboard
 
 # exit
 exitflag = False
@@ -31,6 +30,11 @@ BGP_PASSATTR_ORIGIN = 1
 BGP_PASSATTR_AS_PATH = 2
 BGP_PASSATTR_NEXT_HOP = 3
 BGP_PASSATTR_MED = 4
+BGP_PASSATTR_LP = 5
+BGP_PASSATTR_ATOMIC_AGGR = 6
+BGP_PASSATTR_AGGR = 7
+BGP_PASSATTR_COMMUNITIES = 8
+
 # debug mode
 debug = True
 # peer state
@@ -179,7 +183,21 @@ class peerState(threading.Thread):
             pass
 
     def established(self, s, decData):
-        pass
+        global peer_state
+        if self.mode == BGP_MODE_INITIATOR:
+            if decData[MSGTYPE_CHECK_BIN] == BGP_MSG_UPDATE:
+                self.recvUpdate(decData)
+            elif decData[MSGTYPE_CHECK_BIN] == BGP_MSG_KEEPALIVE:
+                pass
+            elif decData[MSGTYPE_CHECK_BIN] == BGP_MSG_NOTIFICATION:
+                pass
+            elif decData[MSGTYPE_CHECK_BIN] == BGP_MSG_ROUTEREFRESH:
+                pass
+            else:
+                pass
+        elif self.mode == BGP_MODE_RESPONDER:
+            pass
+
 
     # OPEN
     def sendOpen(self, s):
@@ -236,6 +254,176 @@ class peerState(threading.Thread):
             return False
         else:
             return True
+
+    # UPDATE
+    def recvUpdate(self, decData):
+        messageLength = decData[16] * 256 + decData[17]
+        withdrawnLength = decData[19] * 256 + decData[20]
+        # Withdrawn
+        if withdrawnLength != 0:
+            withdrawnStartByte = 21
+            withdrawnRoute = []
+            while withdrawnStartByte < 21 + withdrawnLength:
+                prefixLength = decData[withdrawnStartByte]
+                if prefixLength <= 8:
+                    prefix_w = str(decData[withdrawnStartByte + 1]) + ".0.0.0/" + str(prefixLength)
+                    withdrawnStartByte += 2
+                elif prefixLength <= 16:
+                    prefix_w = str(decData[withdrawnStartByte + 1]) + "." + str(decData[withdrawnStartByte + 2]) + ".0.0/" + str(prefixLength)
+                    withdrawnStartByte += 3
+                elif prefixLength <= 24:
+                    prefix_w = str(decData[withdrawnStartByte + 1]) + "." + str(decData[withdrawnStartByte + 2]) + "." + str(decData[withdrawnStartByte + 3]) + ".0/" + str(prefixLength)
+                    withdrawnStartByte += 4
+                else:
+                    prefix_w = str(decData[withdrawnStartByte + 1]) + "." + str(decData[withdrawnStartByte + 2]) + "." + str(decData[withdrawnStartByte + 3]) + "." + str(decData[withdrawnStartByte + 4]) + "/" + str(prefixLength)
+                    withdrawnStartByte += 5
+                if debug:
+                    print("\033[31m","Receive UPDATE Withdrawn Prefix: ", prefix_w, "\033[0m")
+                withdrawnRoute.append(prefix_w)
+                rw.del_from_bgptable(prefix_w, self.addr)
+            if debug:
+                print('=======================')
+                print('# Withdrawn #')
+                print('Withdrawn Route Length: ' + str(withdrawnLength))
+                for i in withdrawnRoute:
+                    print('Withdrawn Routes: ' + i)
+                print('=======================')
+
+        # PathAttribute
+        pathAttributeLength = decData[21 + withdrawnLength] * 256 + decData[22 + withdrawnLength]
+        pathAttributeStartByte = 23 + withdrawnLength
+        if pathAttributeLength != 0:
+            pathAttrLenCnt = pathAttributeLength
+            to_bgptable_array = {}
+            while pathAttrLenCnt > 0:
+                attributeFlag =  decData[pathAttributeStartByte]
+                attributetype = decData[pathAttributeStartByte + 1]
+                s = format(attributeFlag, '08b')
+                # flag 3rd bit = AttrLen. 0 = 1byte, 1 = 2byte. 
+                if int(s[3]) == 0:
+                    # AttrLength = 1byte
+                    attributelength = decData[pathAttributeStartByte + 2]
+                    attributeArray = [attributeFlag, attributetype, attributelength]
+                    for i in range(attributelength):
+                        attributeArray.append(decData[pathAttributeStartByte + 3 + i])
+                    pathAttributeStartByte += (3 + attributelength)
+                    pathAttrLenCnt -= attributelength + 3
+                else:
+                    # AttrLength = 2byte
+                    attributelength = decData[pathAttributeStartByte + 2] * 256 + decData[pathAttributeStartByte + 3]
+                    attributeArray = [attributeFlag, attributetype, attributelength]
+                    for i in range(attributelength):
+                        attributeArray.append(decData[pathAttributeStartByte + 4 + i])
+                    pathAttributeStartByte += (4 + attributelength)
+                    pathAttrLenCnt -= attributelength + 4
+                to_bgptable_array.update(self.selectPathAttribute(attributeArray))
+        
+        # NLRI
+        nlriStartByte = 23 + withdrawnLength + pathAttributeLength
+        while nlriStartByte < messageLength:
+            prefixLength = decData[nlriStartByte]
+            if prefixLength <= 8:
+                prefix_n = str(decData[nlriStartByte + 1]) + ".0.0.0/" + str(prefixLength)
+                nlriStartByte += 2
+            elif prefixLength <= 16:
+                prefix_n = str(decData[nlriStartByte + 1]) + "." + str(decData[nlriStartByte + 2]) + ".0.0/" + str(prefixLength)
+                nlriStartByte += 3
+            elif prefixLength <= 24:
+                prefix_n = str(decData[nlriStartByte + 1]) + "." + str(decData[nlriStartByte + 2]) + "." + str(decData[nlriStartByte + 3]) + ".0/" + str(prefixLength)
+                nlriStartByte += 4
+            else:
+                prefix_n = str(decData[nlriStartByte + 1]) + "." + str(decData[nlriStartByte + 2]) + "." + str(decData[nlriStartByte + 3]) + "." + str(decData[nlriStartByte + 4]) + "/" + str(prefixLength)
+                nlriStartByte += 5
+            print("\033[32m","Receive UPDATE NLRI Prefix: ", prefix_n, "\033[0m")
+            rw.into_bgptable(prefix_n, to_bgptable_array)
+        if debug:
+            print("withdrawn Routes Length: ", withdrawnLength)
+
+    def selectPathAttribute(self, attributeArray):
+        attributeflag =  attributeArray[0]
+        attributetype = attributeArray[1]
+        attributelength = attributeArray[2]
+        if debug:
+            print("--------------------------")
+            print("# PathAttribute info #")
+            print("attributeflag:", format(attributeArray[0], '08b'))
+            print(" Optional:", format(attributeArray[0], '08b')[0])
+            print(" Transitive:", format(attributeArray[0], '08b')[1])
+            print(" Partial:", format(attributeArray[0], '08b')[2])
+            print(" Extended-Length:", format(attributeArray[0], '08b')[3])
+            print("attributetype:", attributeArray[1])
+            print("attributelength:", attributeArray[2])
+
+        parameterArray = []
+        for i in attributeArray[3:]:
+            parameterArray.append(i)
+        
+        # ORIGIN
+        if attributetype == BGP_PASSATTR_ORIGIN:
+            if debug:
+                print('# ORIGIN #')
+                print('origin: ', parameterArray[0])
+                print("--------------------------")
+            return {'origin': parameterArray[0]}
+        
+        # ASPATH
+        if attributetype == BGP_PASSATTR_AS_PATH:
+            # SegmentType
+            if parameterArray[0] == 1:
+                # AS_SET
+                pass
+            elif parameterArray[0] == 2:
+                # AS_SEQUENCE
+                pass
+            # SegmentLength
+            segmentLen = parameterArray[1]
+            as_path = []
+            for i in range(segmentLen):
+                as_path.append(parameterArray[(i*2) + 2] * 256 + parameterArray[(i*2) + 3])
+            if debug:
+                print('# AS_PATH #')
+                print('as_path: ', as_path)
+                print("--------------------------")
+            return {'as_path': as_path}
+        
+        # NEXT_HOP
+        if attributetype == BGP_PASSATTR_NEXT_HOP:
+            next_hop = str(parameterArray[0]) + "." + str(parameterArray[1]) + "." + str(parameterArray[2]) + "." + str(parameterArray[3])
+            if debug:
+                print('# NEXT_HOP #')
+                print('next_hop: ', next_hop)
+                print("--------------------------")
+            return {'next_hop': next_hop}
+
+        # MED
+        if attributetype == BGP_PASSATTR_MED:
+            med = parameterArray[0] * (256 ^ 4) + parameterArray[1] * (256 ^ 3) + parameterArray[2] * (256 ^ 2) + parameterArray[3]
+            if debug:
+                print('# MED #')
+                print('med: ', med)
+                print("--------------------------")
+            return {'med': med}
+        
+        # LP
+        if attributetype == BGP_PASSATTR_LP:
+            lp = parameterArray[0] * (256 ^ 4) + parameterArray[1] * (256 ^ 3) + parameterArray[2] * (256 ^ 2) + parameterArray[3]
+            if debug:
+                print('# LP #')
+                print('LP: ', lp) 
+                print("--------------------------")
+
+        # COMMUNITY
+        if attributetype == BGP_PASSATTR_COMMUNITIES:
+            community_f = parameterArray[0] * (256 ^ 2) + parameterArray[1]
+            community_b = parameterArray[2] * (256 ^ 2) + parameterArray[3]
+            community = str(community_f) + ':' + str(community_b)
+            if debug:
+                print('# COMMUNITY #')
+                print('COMMUNITY: ', community)
+                print("--------------------------")
+
+
+    # NOTIFICATION
 
     # KEEPALIVE
     def sendKeepalive(self,s):
@@ -310,6 +498,11 @@ def client():
             elif i == "exit":
                 print("# exitflag is True. wait...#")
                 exitflag = True
+                for i in range(len(th)):
+                    th[i].join()
+                rw.del_all()
+                print("exit.")
+                sys.exit()
             elif i == "show":
                 for k, v in peer_state.items():
                     if v == 1: 
