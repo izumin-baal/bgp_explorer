@@ -26,7 +26,6 @@ def into_routingtable_ecmp(addrprefix, ecmp_nexthop_array):
     except:
         pass
     args = ['ip', 'route', 'add', addrprefix, 'proto', 'bgp']
-    print(ecmp_nexthop_array)
     for i in range(len(ecmp_nexthop_array)):
         args.extend(['nexthop', 'via', ecmp_nexthop_array[i]])
     print("\033[33m", *args, "\033[0m")

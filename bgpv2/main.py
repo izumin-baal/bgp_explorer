@@ -285,7 +285,7 @@ class peerState(threading.Thread):
                     print("\033[31m","Receive UPDATE Withdrawn Prefix: ", prefix_w, "\033[0m")
                 withdrawnRoute.append(prefix_w)
                 globalLock.acquire()
-                rw.del_from_bgptable(prefix_w, self.addr)
+                rw.del_from_bgptable(prefix_w, self.neighborip)
                 globalLock.release()
             if debug:
                 print('=======================')
