@@ -6,6 +6,7 @@ import time
 import bgpformat
 import rw
 import os
+import keyboard
 
 # exit
 exitflag = False
@@ -55,6 +56,7 @@ class peerState(threading.Thread):
             while True:
                 if exitflag:
                     print("# " + self.neighborip + " thread down #")
+                    peer_state[self.neighborip] = BGP_STATE_IDLE
                     sys.exit()
                 if  peer_state[self.neighborip] == BGP_STATE_IDLE:
                     s = None
@@ -85,9 +87,15 @@ class peerState(threading.Thread):
                         data = s.recv(4096)
                     except socket.timeout:
                         if peer_state[self.neighborip] == BGP_STATE_ESTABLISHED:
-                            print('[E] Timeout HoldTime.')
+                            if debug:
+                                print('[E][' + self.neighborip + '] Timeout HoldTime.')
+                            print('Neighbor ' + self.neighborip + ' Down.')
+                            peer_state[self.neighborip] = BGP_STATE_IDLE
+                            time.sleep(10)
                         else:
-                            print('[E] No response.')
+                            if debug:
+                                print('[E][' + self.neighborip + '] No response.')
+                            peer_state[self.neighborip] = BGP_STATE_IDLE
                     self.operateByState(s, data)
         elif self.mode == BGP_MODE_RESPONDER:
             pass
@@ -125,8 +133,7 @@ class peerState(threading.Thread):
         elif i == BGP_STATE_OPENCONFIRM:
             self.openConfirm(s, decData)
         elif i == BGP_STATE_ESTABLISHED:
-            while True:
-                pass
+            self.established(s, decData)
         else:
             pass
 
@@ -171,6 +178,9 @@ class peerState(threading.Thread):
         elif self.mode == BGP_MODE_RESPONDER:
             pass
 
+    def established(self, s, decData):
+        pass
+
     # OPEN
     def sendOpen(self, s):
         if self.mode == BGP_MODE_INITIATOR:
@@ -178,7 +188,8 @@ class peerState(threading.Thread):
             s.sendall(msg)
         elif self.mode == BGP_MODE_RESPONDER:
             pass
-        print(">> Send OPEN")
+        if debug:
+            print(">>[' + self.neighborip + '] Send OPEN")
 
     def checkRecvOpen(self, decData):
         global peer_state
@@ -189,32 +200,32 @@ class peerState(threading.Thread):
         # ASN
         if self.remoteas != (decData[20] * 256 + decData[21]):
             if debug:
-                print('[E] neighbor ASN is incorrect.')
+                print('[E][' + self.neighborip + '] neighbor ASN is incorrect.')
             errorMsg = True
         # Version
         if PARAMETERCONF['Version'] != decData[19]:
             if debug:
-                print('[E] neighbor Version incorrect.')
+                print('[E][' + self.neighborip + '] neighbor Version incorrect.')
             errorMsg = True
         # Router-ID
         if PARAMETERCONF['RouterID'] == (str(decData[24]) + '.' + str(decData[25]) + '.' + str(decData[26]) + '.' + str(decData[27])):
             if debug:
-                print("[E] Duplicate RouterID.")
+                print("[E][" + self.neighborip + "] Duplicate RouterID.")
             errorMsg = True
         # Holdtime
         if PARAMETERCONF['HoldTime'] < (decData[22] * 256 + decData[23]):
             if debug:
-                print("[I] Use my HoldTime.")
+                print("[I][" + self.neighborip + "] Use my HoldTime.")
             self.holdtime = PARAMETERCONF['HoldTime']
             self.timeout = self.holdtime
         else:
             if debug:
-                print("[I] Use Neighbor Holdtime.")
+                print("[I][" + self.neighborip + "] Use Neighbor Holdtime.")
             self.holdtime = decData[22] * 256 + decData[23]
             self.timeout = self.holdtime
         if debug:
             print('===========================')
-            print('# Recv OPEN Parameter #')
+            print('# Recv OPEN Parameter [' + self.neighborip + ' #')
             print('Version: ' + str(decData[19]))
             print('ASN: ' + str(decData[20] * 256 + decData[21]))
             print('Router-ID: ' + str(decData[24]) + '.' + str(decData[25]) + '.' + str(decData[26]) + '.' + str(decData[27]))
@@ -226,64 +237,20 @@ class peerState(threading.Thread):
         else:
             return True
 
-    def peerJadge(self, msg):
-        with open('config.yaml', 'r') as yml:
-            config = yaml.safe_load(yml)
-        PARAMETERCONF = config['bgp']['parameter']
-        errorMsg = False
-        # IP
-        if self.mode == BGP_MODE_RESPONDER:
-            ##### Change ####
-            if self.neighborip == self.neighborip:
-                pass
-            else:
-                if debug:
-                    print("neighbor IP is incorrect")
-                errorMsg = True
-        # ASN
-        if self.remoteas == (msg[20] * 256 + msg[21]):
-            pass
-        else:
-            print(msg[20] * 256 + msg[21])
-            if debug:
-                print("neighbor ASN is incorrect")
-            errorMsg = True
-        # Version
-        if PARAMETERCONF['Version'] == msg[19]:
-            pass
-        else:
-            if debug:
-                print("neighbor Version incorrect")
-            errorMsg = True
-        # Router-ID
-        if PARAMETERCONF['RouterID'] == (str(msg[24]) + '.' + str(msg[25]) + '.' + str(msg[26]) + '.' + str(msg[27])):
-            if debug:
-                print("neighbor RouterID is incorrect")
-            errorMsg = True
-        # Holdtime決定
-        if PARAMETERCONF['HoldTime'] < (msg[22] * 256 + msg[23]):
-            if debug:
-                print("Use my HoldTime")
-            self.holdtime = PARAMETERCONF['HoldTime']
-        else:
-            if debug:
-                print("Use Neighbor Holdtime")
-            self.holdtime = msg[22] * 256 + msg[23]
-            self.holdtimecnt = self.holdtime
-        if errorMsg:
-            self.state = BGP_STATE_IDLE
-            return True
-        else:
-            return False
-
     # KEEPALIVE
     def sendKeepalive(self,s):
         msg = bgpformat.b_keepaliveMsg()
         s.sendall(msg)
-        print(">> Send KEEPALIVE")
+        if debug:
+            print(">>[" + self.neighborip + "] Send KEEPALIVE")
     
     def intervalKeepalive(self, s):
         global peer_state
+        global exitflag
+        if exitflag:
+            if debug:
+                print("[!][" + self.neighborip + "] intervalKeepalive down")
+            sys.exit()
         while peer_state[self.neighborip] == BGP_STATE_ESTABLISHED:
             self.sendKeepalive(s)
             time.sleep(int(self.holdtime/3))
@@ -297,17 +264,17 @@ class peerState(threading.Thread):
             if debug:
                 if i == MSGTYPE_CHECK_BIN:
                     if octet == BGP_MSG_OPEN:
-                        print('<< Recv OPEN')
+                        print('<<[' + self.neighborip + '] Recv OPEN')
                     elif octet == BGP_MSG_UPDATE:
-                        print('<< Recv UPDATE')
+                        print('<<[' + self.neighborip + '] Recv UPDATE')
                     elif octet == BGP_MSG_NOTIFICATION:
-                        print('<< Recv NOTIFICATION')
+                        print('<<[' + self.neighborip + '] Recv NOTIFICATION')
                     elif octet == BGP_MSG_KEEPALIVE:
-                        print('<< Recv KEEPALIVE')
+                        print('<<[' + self.neighborip + '] Recv KEEPALIVE')
                     elif octet == BGP_MSG_ROUTEREFRESH:
-                        print('<< Recv ROUTEREFRESH')
+                        print('<<[' + self.neighborip + '] Recv ROUTEREFRESH')
                     else:
-                        print('<< Recv UNKNOWN')
+                        print('<<[' + self.neighborip + '] Recv UNKNOWN')
         return data_digit_array
 
 def server():
@@ -322,6 +289,8 @@ def server():
         state.stateMachine()
 
 def client():
+    global exitflag
+    global peer_state
     print("### Initiator mode ###")
     with open('config.yaml', 'r') as yml:
         config = yaml.safe_load(yml)
@@ -335,9 +304,28 @@ def client():
         th[i].start()
     try:
         while True:
-            pass
+            i = input()
+            if i == "":
+                print("[cmd]")
+            elif i == "exit":
+                print("# exitflag is True. wait...#")
+                exitflag = True
+            elif i == "show":
+                for k, v in peer_state.items():
+                    if v == 1: 
+                        state = 'IDLE'
+                    elif v == 2: 
+                        state = 'CONNECT'
+                    elif v == 3: 
+                        state = 'ACTIVE'
+                    elif v == 4: 
+                        state = 'OPENSENT'
+                    elif v == 5: 
+                        state = 'OPENCONFIRM'
+                    elif v == 6: 
+                        state = 'ESTABLISHED'
+                    print(str(k) + ': ' + state)
     except KeyboardInterrupt:
-        global exitflag
         exitflag = True
         print('# exitflag is True. wait...#')
         for i in range(len(th)):
@@ -347,11 +335,11 @@ def client():
         sys.exit()
 
 if __name__ == "__main__":
-    #if os.geteuid() == 0 and os.getuid() == 0 :
-    #    pass
-    #else:
-    #    print("Root Only!!!")
-    #    sys.exit()
+    if os.geteuid() == 0 and os.getuid() == 0 :
+        pass
+    else:
+        print("Root Only!!!")
+        sys.exit()
     arg = sys.argv
     if 2 <= len(arg):
         cmd = arg[1]

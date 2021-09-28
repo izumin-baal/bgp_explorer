@@ -3,13 +3,13 @@ bgp:
       - NeighborIP: "10.2.2.2"
         Remote-as: 2
         NextHop: "10.2.2.1"
-      - NeighborIP: "10.2.2.2"
+      - NeighborIP: "10.2.2.6"
         Remote-as: 2
-        NextHop: "10.2.2.1"
+        NextHop: "10.2.2.5"
   parameter:
       Version: 4
       MyASN: 1
-      HoldTime: 40
+      HoldTime: 10
       RouterID: "1.1.1.1"
       Option: False
   command:
