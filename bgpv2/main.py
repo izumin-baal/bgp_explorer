@@ -40,7 +40,10 @@ debug = True
 # peer state
 peer_state = {}
 # 
+globalLock = threading.Lock()
+#
 MSGTYPE_CHECK_BIN = 18
+
 class peerState(threading.Thread):
     def __init__(self, neighborip, remoteas, nexthop, mode):
         global peer_state
@@ -207,7 +210,7 @@ class peerState(threading.Thread):
         elif self.mode == BGP_MODE_RESPONDER:
             pass
         if debug:
-            print(">>[' + self.neighborip + '] Send OPEN")
+            print(">>[" + self.neighborip + "] Send OPEN")
 
     def checkRecvOpen(self, decData):
         global peer_state
@@ -257,6 +260,7 @@ class peerState(threading.Thread):
 
     # UPDATE
     def recvUpdate(self, decData):
+        global globalLock
         messageLength = decData[16] * 256 + decData[17]
         withdrawnLength = decData[19] * 256 + decData[20]
         # Withdrawn
@@ -280,7 +284,9 @@ class peerState(threading.Thread):
                 if debug:
                     print("\033[31m","Receive UPDATE Withdrawn Prefix: ", prefix_w, "\033[0m")
                 withdrawnRoute.append(prefix_w)
+                globalLock.acquire()
                 rw.del_from_bgptable(prefix_w, self.addr)
+                globalLock.release()
             if debug:
                 print('=======================')
                 print('# Withdrawn #')
@@ -335,7 +341,9 @@ class peerState(threading.Thread):
                 prefix_n = str(decData[nlriStartByte + 1]) + "." + str(decData[nlriStartByte + 2]) + "." + str(decData[nlriStartByte + 3]) + "." + str(decData[nlriStartByte + 4]) + "/" + str(prefixLength)
                 nlriStartByte += 5
             print("\033[32m","Receive UPDATE NLRI Prefix: ", prefix_n, "\033[0m")
+            globalLock.acquire()
             rw.into_bgptable(prefix_n, to_bgptable_array)
+            globalLock.release()
         if debug:
             print("withdrawn Routes Length: ", withdrawnLength)
 
@@ -421,7 +429,7 @@ class peerState(threading.Thread):
                 print('# COMMUNITY #')
                 print('COMMUNITY: ', community)
                 print("--------------------------")
-
+            return {'community': community}
 
     # NOTIFICATION
 
@@ -479,6 +487,7 @@ def server():
 def client():
     global exitflag
     global peer_state
+    global globalLock
     print("### Initiator mode ###")
     with open('config.yaml', 'r') as yml:
         config = yaml.safe_load(yml)
@@ -500,7 +509,9 @@ def client():
                 exitflag = True
                 for i in range(len(th)):
                     th[i].join()
+                globalLock.acquire()
                 rw.del_all()
+                globalLock.release()
                 print("exit.")
                 sys.exit()
             elif i == "show":
@@ -523,7 +534,9 @@ def client():
         print('# exitflag is True. wait...#')
         for i in range(len(th)):
             th[i].join()
+        globalLock.acquire()
         rw.del_all()
+        globalLock.release()
         print("exit.")
         sys.exit()
 
