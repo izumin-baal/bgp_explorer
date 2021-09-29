@@ -36,8 +36,8 @@ def b_openMsg():
     int_msg = int(msg, 2)
     return int_msg.to_bytes(msgLen, 'big')
 
-def b_updateMsg():
-    b_updateFormat = b_updateformat()
+def b_updateMsg(myip):
+    b_updateFormat = b_updateformat(myip)
     b_updateMsg = b_msgHeader(int(len(b_updateFormat)/8), 2)
     msg = b_updateMsg + b_updateFormat
     msgLen = int(len(msg)/8)
@@ -45,7 +45,7 @@ def b_updateMsg():
     print()
     return int_msg.to_bytes(msgLen, 'big')
 
-def b_updateformat():
+def b_updateformat(myip):
     with open('config.yaml', 'r') as yml:
         config = yaml.safe_load(yml)
     b_withdrawn = format(0, '016b')
@@ -54,15 +54,15 @@ def b_updateformat():
     # AS_PATH: MyASN
     b_asn = format(64, '08b') + format(2, '08b') + format(4, '08b') + format(2, '08b') + format(1, '08b') + format(int(config['bgp']['parameter']['MyASN']), '016b')
     # NEXT_HOP: MyIP
-    nexthop = config['bgp']['parameter'][0]['NextHop'].split('.')
+    nexthop = myip.split('.')
     b_nexthop = format(64, '08b') + format(3, '08b') + format(4, '08b') + format(int(nexthop[0]), '08b') + format(int(nexthop[1]), '08b') + format(int(nexthop[2]), '08b') + format(int(nexthop[3]), '08b') 
     # MED: 0
     b_med = format(128, '08b') + format(4, '08b') + format(4, '08b') + format(0, '032b')
     attributeLen = int(len(b_origin + b_asn + b_nexthop + b_med)/8)
     b_pathattr = format(attributeLen, '016b') + b_origin + b_asn + b_nexthop + b_med
     b_nlri = ""
-    for prefix in config['bgp']['advertisement']:
-        address, prefix = prefix['Prefix'].split('/')
+    for prefix in config['bgp']['command']['network']:
+        address, prefix = prefix.split('/')
         splitaddress = address.split('.')
         b_nlri += format(int(prefix), '08b')
         if int(prefix) <= 8:

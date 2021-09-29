@@ -141,6 +141,7 @@ class peerState(threading.Thread):
             self.openConfirm(s, decData)
         elif i == BGP_STATE_ESTABLISHED:
             self.established(s, decData)
+
         else:
             pass
 
@@ -175,9 +176,10 @@ class peerState(threading.Thread):
                 s.settimeout(self.timeout)
                 t = threading.Thread(target=self.intervalKeepalive, args=(s,))
                 t.start()
-                print('Neighbor ' + self.neighborip + ' Up.')
+                print('Neighbor ' + self.neighborip + ' Up.')    
                 if debug:
                     self.printState()
+                self.sendUpdate(s) # Update
             else:
                 peer_state[self.neighborip] = BGP_STATE_IDLE
                 if debug:
@@ -431,6 +433,12 @@ class peerState(threading.Thread):
                 print("--------------------------")
             return {'community': community}
 
+    def sendUpdate(self,s):
+        msg = bgpformat.b_updateMsg(self.nexthop)
+        s.sendall(msg)
+        if debug:
+            print(">>[" + self.neighborip + "] Send UPDATE")
+
     # NOTIFICATION
 
     # KEEPALIVE
@@ -473,16 +481,16 @@ class peerState(threading.Thread):
                         print('<<[' + self.neighborip + '] Recv UNKNOWN')
         return data_digit_array
 
-def server():
-    print("### Responder mode ###")
-    with open('config.yaml', 'r') as yml:
-        config = yaml.safe_load(yml)
-    NEIGHBORCONF = config['bgp']['neighbor']
-    ip = NEIGHBORCONF["IP"]
-    remoteAs = NEIGHBORCONF["Remote-as"]
-    state = StateMachine(ip, remoteAs, BGP_MODE_RESPONDER)
-    while True:
-        state.stateMachine()
+#def server():
+    #print("### Responder mode ###")
+    #with open('config.yaml', 'r') as yml:
+    #    config = yaml.safe_load(yml)
+    #NEIGHBORCONF = config['bgp']['neighbor']
+    #ip = NEIGHBORCONF["IP"]
+    #remoteAs = NEIGHBORCONF["Remote-as"]
+    #state = StateMachine(ip, remoteAs, BGP_MODE_RESPONDER)
+    #while True:
+    #    state.stateMachine()
 
 def client():
     global exitflag
